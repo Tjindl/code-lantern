@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Compound Graph Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+  <script src="./utils/compoundNodesAdapter.global.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 24px; background: #fafafa; }
+    .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; margin-bottom: 24px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    input[type="text"] { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; min-width: 360px; }
+    button { padding: 8px 12px; border: 1px solid #374151; background: #111827; color: #fff; border-radius: 6px; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .graph { width: 100%; height: 520px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; }
+    .status { font-size: 12px; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useEffect, useRef, useState } = React;
+
+    function CompoundGraphView({ repoId, apiBase='http://localhost:8000' }){
+      const ref = useRef(null);
+      const cyRef = useRef(null);
+      const [status, setStatus] = useState('idle');
+      const [error, setError] = useState(null);
+
+      const stylesheet = [
+        { selector: 'node[type="file"]', style: { 'background-color': '#f3f4f6', 'border-width': 1, 'border-color': '#9ca3af', 'label': 'data(label)', 'font-weight': 'bold' } },
+        { selector: '$node > node', style: { 'padding': '12px', 'text-valign': 'top', 'text-halign': 'center' } },
+        { selector: 'node[type="function"]', style: { 'label': 'data(label)', 'text-valign': 'center', 'text-halign': 'center', 'background-color': '#60a5fa', 'color': '#fff', 'font-size': '10px' } },
+        { selector: 'edge', style: { 'width': 2, 'line-color': '#9ca3af', 'target-arrow-color': '#9ca3af', 'target-arrow-shape': 'triangle', 'curve-style': 'bezier' } }
+      ];
+
+      async function fetchFunctionNetwork(){
+        const res = await fetch(`${apiBase}/api/graph-data/${repoId}?graph_type=function-network`);
+        if(!res.ok){ throw new Error(`HTTP ${res.status}: ${await res.text()}`); }
+        const json = await res.json();
+        return json.data;
+      }
+
+      useEffect(()=>{
+        if(!repoId) return;
+        let cancelled = false;
+        async function load(){
+          try{
+            setStatus('loading'); setError(null);
+            // best-effort ensure analysis
+            await fetch(`${apiBase}/api/analyze/${repoId}`).catch(()=>{});
+            const data = await fetchFunctionNetwork();
+            if(cancelled) return;
+            const elements = window.toCompoundElements(data);
+            if(cyRef.current){ try{ cyRef.current.destroy(); }catch{} cyRef.current = null; }
+            const cy = cytoscape({ container: ref.current, elements, style: stylesheet, layout: { name: 'cose' } });
+            cyRef.current = cy;
+            setStatus('ready');
+          }catch(e){
+            if(!cancelled){ setError(e.message); setStatus('error'); }
+          }
+        }
+        load();
+        return ()=>{ cancelled = true; try{ cyRef.current?.destroy(); }catch{} cyRef.current = null; };
+      }, [repoId, apiBase]);
+
+      return (
+        <div className="panel">
+          <div className="row" style={{ justifyContent:'space-between' }}>
+            <div>Compound Graph</div>
+            <div className="status">Status: {status}{error?` • ${error}`:''}</div>
+          </div>
+          <div ref={ref} className="graph" />
+        </div>
+      );
+    }
+
+    function App(){
+      const params = new URLSearchParams(location.search);
+      const initialRepo = params.get('repo_id') || '';
+      const [repoId, setRepoId] = useState(initialRepo);
+      const [activeRepo, setActiveRepo] = useState(initialRepo);
+      const [apiBase, setApiBase] = useState('http://localhost:8000');
+      return (
+        <div className="panel">
+          <div className="row">
+            <input type="text" placeholder="repo_id" value={repoId} onChange={e=>setRepoId(e.target.value)} />
+            <input type="text" placeholder="API base" value={apiBase} onChange={e=>setApiBase(e.target.value)} />
+            <button onClick={()=>setActiveRepo(repoId)} disabled={!repoId}>Render</button>
+          </div>
+          {activeRepo ? <CompoundGraphView repoId={activeRepo} apiBase={apiBase} /> : <div style={{marginTop:12}}>Enter repo_id to render.</div>}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App/>);
+  </script>
+</body>
+</html>

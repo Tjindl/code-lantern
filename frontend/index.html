@@ -11,6 +11,10 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Configure backend base URL for the frontend
+      window.__API_BASE__ = window.__API_BASE__ || 'http://localhost:8000';
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

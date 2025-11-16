@@ -42,9 +42,21 @@ async def root():
         }
     }
 
+@app.get("/health")
+async def health():
+    """Health check endpoint"""
+    return {"status": "ok"}
+
 app.include_router(upload_router, prefix="/api")
 app.include_router(analysis_router, prefix="/api")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "main:app", 
+        host="0.0.0.0", 
+        port=8000, 
+        reload=True,
+        reload_dirs=["routes", "core"],  # Only watch backend code, not processed_repos
+        reload_excludes=["processed_repos/*"]
+    )
