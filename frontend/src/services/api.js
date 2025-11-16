@@ -1,17 +1,17 @@
 // src/services/api.js
+// src/services/api.js
 export async function uploadProjectZip(file) {
   const formData = new FormData();
-  formData.append("file", file); // must match backend parameter name "file"
+  formData.append("file", file);
 
-  const response = await fetch("http://localhost:5000/upload", {
+  const response = await fetch("http://127.0.0.1:8000/api/upload", {
     method: "POST",
     body: formData,
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Upload failed");
+    throw new Error("Upload failed");
   }
 
-  return response.json(); // backend returns repo_id, extracted_to, etc.
+  return await response.json();
 }
