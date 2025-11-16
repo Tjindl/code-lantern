@@ -55,9 +55,14 @@ python -m http.server 3000
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 | `POST` | `/api/upload` | Upload ZIP file |
-| `GET` | `/api/analyze/{repo_id}` | Generate architecture map |
+| `GET` | `/api/analyze/{repo_id}` | **Generate complete architecture JSON** |
 | `GET` | `/api/files/{repo_id}` | Get file browser data |
 | `GET` | `/api/function/{repo_id}` | Get AI function details |
+| `GET` | `/api/project-summary/{repo_id}` | **Get comprehensive project analysis with AI insights** |
+
+**The `/api/analyze/{repo_id}` endpoint returns the complete project architecture as JSON, including all files, functions, and their call relationships.**
+
+**The `/api/project-summary/{repo_id}` endpoint provides detailed statistics, code health scores, and AI-powered insights about the uploaded project.**
 
 ## 🏗️ Architecture
 
