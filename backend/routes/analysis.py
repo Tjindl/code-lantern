@@ -377,6 +377,14 @@ async def get_function_details(repo_id: str, file_path: str, function_name: str)
         "details": function_description
     }
 
+@router.get("/function")
+async def get_function_details_latest(file_path: str, function_name: str):
+    """Get function details for the latest uploaded repo"""
+    repo_id = get_latest_repo_id()
+    if not repo_id:
+        raise HTTPException(status_code=404, detail="No repo uploaded yet")
+    return await get_function_details(repo_id, file_path, function_name)
+
 @router.get("/project-summary/{repo_id}")
 async def get_project_summary(repo_id: str):
     """Generate comprehensive AI-powered project summary and analytics"""
@@ -560,84 +568,93 @@ def categorize_architecture_complexity(avg_complexity: float) -> str:
         return "Highly Complex"
 
 async def generate_project_ai_summary(project_stats: dict, architecture_map: dict) -> dict:
-    """Generate AI-powered project summary using Gemini"""
-    if not os.getenv("GEMINI_API_KEY"):
+    """Generate an AI-powered summary. Falls back to static summary if AI unavailable."""
+    # Static fallback if AI is not configured
+    if model is None or not os.getenv("GEMINI_API_KEY"):
+        print("[AI] No model or API key - returning static summary")
+        fs = project_stats.get('file_stats', {})
+        fns = project_stats.get('function_stats', {})
+        lang = project_stats.get('language_stats', {})
+        cmx = project_stats.get('complexity_metrics', {})
         return {
-            "overview": "AI summary unavailable - API key not configured",
-            "strengths": ["Project analysis completed"],
-            "recommendations": ["Configure AI API for detailed insights"],
-            "architecture_insights": "Basic analysis available"
+            "source": "static",
+            "overview": f"Project with {fs.get('total_files', 0)} files and {fns.get('total_functions', 0)} functions. Primary language: {lang.get('primary_language', 'Unknown')}.",
+            "strengths": ["Architecture map generated", "Complexity metrics computed", "Language mix detected"],
+            "recommendations": ["Document complex areas", "Add tests", "Adopt linting"],
+            "architecture_insights": f"Avg complexity {fns.get('average_complexity', 0)}; health {cmx.get('code_health_score', 0)}/100",
+            "technology_assessment": f"Primary language: {lang.get('primary_language', 'Unknown')}"
         }
-    
     try:
-        # Prepare data for AI analysis
-        file_stats = project_stats['file_stats']
-        function_stats = project_stats['function_stats']
-        language_stats = project_stats['language_stats']
-        complexity = project_stats['complexity_metrics']
-        
-        prompt = f"""
-Analyze this software project and provide a comprehensive summary:
-
-PROJECT STATISTICS:
-- Files: {file_stats['total_files']}
-- Functions: {function_stats['total_functions']}
-- Lines of Code: {file_stats['estimated_lines_of_code']}
-- Primary Language: {language_stats['primary_language']}
-- Languages: {', '.join(language_stats['languages'].keys())}
-- Code Health Score: {complexity['code_health_score']}/100
-- Average Function Complexity: {function_stats['average_complexity']}
-- Project Size: {complexity['project_size']}
-- Architecture Complexity: {complexity['architecture_complexity']}
-
-Provide analysis in this JSON format:
-{{
-    "overview": "2-3 sentence project summary",
-    "strengths": ["strength1", "strength2", "strength3"],
-    "recommendations": ["recommendation1", "recommendation2"],
-    "architecture_insights": "Brief architecture analysis",
-    "technology_assessment": "Assessment of technology choices"
-}}
-"""
-        
-        response = model.generate_content(prompt)
-        response_text = response.text
-        
-        # Try to parse JSON
-        json_start = response_text.find('{')
-        json_end = response_text.rfind('}') + 1
-        
-        if json_start >= 0 and json_end > json_start:
-            json_text = response_text[json_start:json_end]
-            return json.loads(json_text)
-        else:
-            # Fallback if JSON parsing fails
-            return {
-                "overview": response_text[:200] + "..." if len(response_text) > 200 else response_text,
-                "strengths": ["Code successfully analyzed", "Project structure extracted"],
-                "recommendations": ["Consider adding documentation", "Review function complexity"],
-                "architecture_insights": "AI analysis completed",
-                "technology_assessment": "Project uses modern technologies"
-            }
-            
-    except Exception as e:
+        print(f"[AI] Generating project summary via {AI_MODEL_NAME if 'AI_MODEL_NAME' in globals() else model}")
+        # ...existing prompt build...
+        resp = model.generate_content(prompt)
+        text = getattr(resp, 'text', '') or ''
+        i, j = text.find('{'), text.rfind('}')
+        if i >= 0 and j > i:
+            data = json.loads(text[i:j+1])
+            data["source"] = "ai"
+            return data
         return {
-            "overview": "This is a well-structured software project with clear organization",
-            "strengths": [
-                "Good file organization",
-                "Clear function structure", 
-                "Appropriate use of technology"
-            ],
-            "recommendations": [
-                "Consider adding unit tests",
-                "Document complex functions",
-                "Regular code reviews recommended"
-            ],
-            "architecture_insights": "Project follows good architectural patterns",
-            "technology_assessment": f"Uses {language_stats['primary_language']} effectively"
+            "source": "ai",
+            "overview": text[:200] + ("..." if len(text) > 200 else ""),
+            "strengths": ["AI summary generated"],
+            "recommendations": ["Refine prompt or enable structured output"],
+            "architecture_insights": "Parsing failed; showing raw excerpt",
+            "technology_assessment": "N/A"
+        }
+    except Exception as e:
+        print(f"[AI] Project summary error: {e}")
+        fs = project_stats.get('file_stats', {})
+        fns = project_stats.get('function_stats', {})
+        cmx = project_stats.get('complexity_metrics', {})
+        return {
+            "source": "static",
+            "overview": f"Static: {fs.get('total_files', 0)} files, {fns.get('total_functions', 0)} functions.",
+            "strengths": ["Stable analysis pipeline"],
+            "recommendations": ["Enable AI key for richer insights"],
+            "architecture_insights": f"Health score {cmx.get('code_health_score', 0)}/100",
+            "technology_assessment": "N/A"
         }
 
 def get_current_timestamp():
     """Get current timestamp"""
     from datetime import datetime
     return datetime.now().isoformat()
+
+BASE_REPO_DIR = os.path.join(os.getcwd(), "processed_repos")
+
+
+def get_latest_repo_id() -> str | None:
+    try:
+        latest_ptr = os.path.join(BASE_REPO_DIR, 'LATEST')
+        if os.path.exists(latest_ptr):
+            with open(latest_ptr, 'r') as f:
+                return f.read().strip()
+    except Exception:
+        return None
+    return None
+
+
+@router.get("/analyze")
+async def analyze_latest():
+    repo_id = get_latest_repo_id()
+    if not repo_id:
+        raise HTTPException(status_code=404, detail="No repo uploaded yet")
+    return await analyze_project(repo_id)
+
+
+@router.get("/project-summary")
+async def project_summary_latest():
+    repo_id = get_latest_repo_id()
+    if not repo_id:
+        raise HTTPException(status_code=404, detail="No repo uploaded yet")
+    return await get_project_summary(repo_id)
+
+
+@router.get("/function")
+async def get_function_details_latest(file_path: str, function_name: str):
+    """Get function details for the latest uploaded repo"""
+    repo_id = get_latest_repo_id()
+    if not repo_id:
+        raise HTTPException(status_code=404, detail="No repo uploaded yet")
+    return await get_function_details(repo_id, file_path, function_name)

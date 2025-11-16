@@ -1,0 +1,196 @@
+{
+  "listOfFiles": [
+    {
+      "filePath": "src/index.js",
+      "listOfFunctions": [
+        {
+          "functionName": "src/index.js-bootstrap",
+          "Calls": [
+            "src/controllers/userController.js-initUserRoutes",
+            "src/controllers/orderController.js-initOrderRoutes",
+            "src/services/logService.js-initLogger",
+            "src/services/emailService.js-initEmailClient"
+          ]
+        },
+        {
+          "functionName": "src/index.js-shutdown",
+          "Calls": [
+            "src/services/logService.js-logInfo"
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "src/utils/math.js",
+      "listOfFunctions": [
+        {
+          "functionName": "src/utils/math.js-add",
+          "Calls": []
+        },
+        {
+          "functionName": "src/utils/math.js-multiply",
+          "Calls": []
+        },
+        {
+          "functionName": "src/utils/math.js-average",
+          "Calls": [
+            "src/utils/math.js-add",
+            "src/utils/math.js-divideSafe"
+          ]
+        },
+        {
+          "functionName": "src/utils/math.js-divideSafe",
+          "Calls": [
+            "src/services/logService.js-logError"
+          ]
+        },
+        {
+          "functionName": "src/utils/math.js-normalizeArray",
+          "Calls": [
+            "src/utils/math.js-add",
+            "src/utils/math.js-divideSafe"
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "src/utils/string.js",
+      "listOfFunctions": [
+        {
+          "functionName": "src/utils/string.js-toUpperSafe",
+          "Calls": []
+        },
+        {
+          "functionName": "src/utils/string.js-trimAndCollapseSpaces",
+          "Calls": []
+        },
+        {
+          "functionName": "src/utils/string.js-generateSlug",
+          "Calls": [
+            "src/utils/string.js-trimAndCollapseSpaces",
+            "src/utils/string.js-toUpperSafe"
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "src/controllers/userController.js",
+      "listOfFunctions": [
+        {
+          "functionName": "src/controllers/userController.js-initUserRoutes",
+          "Calls": [
+            "src/services/logService.js-logInfo"
+          ]
+        },
+        {
+          "functionName": "src/controllers/userController.js-getUser",
+          "Calls": [
+            "src/services/logService.js-logInfo"
+          ]
+        },
+        {
+          "functionName": "src/controllers/userController.js-createUser",
+          "Calls": [
+            "src/utils/string.js-trimAndCollapseSpaces",
+            "src/utils/string.js-generateSlug",
+            "src/services/emailService.js-sendWelcomeEmail",
+            "src/services/logService.js-logInfo"
+          ]
+        },
+        {
+          "functionName": "src/controllers/userController.js-deleteUser",
+          "Calls": [
+            "src/services/logService.js-logInfo",
+            "src/services/emailService.js-sendCancellationEmail"
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "src/controllers/orderController.js",
+      "listOfFunctions": [
+        {
+          "functionName": "src/controllers/orderController.js-initOrderRoutes",
+          "Calls": [
+            "src/services/logService.js-logInfo"
+          ]
+        },
+        {
+          "functionName": "src/controllers/orderController.js-getOrder",
+          "Calls": [
+            "src/services/logService.js-logInfo"
+          ]
+        },
+        {
+          "functionName": "src/controllers/orderController.js-createOrder",
+          "Calls": [
+            "src/utils/math.js-average",
+            "src/utils/math.js-normalizeArray",
+            "src/services/emailService.js-sendOrderConfirmation",
+            "src/services/logService.js-logInfo"
+          ]
+        },
+        {
+          "functionName": "src/controllers/orderController.js-cancelOrder",
+          "Calls": [
+            "src/services/logService.js-logInfo",
+            "src/services/emailService.js-sendCancellationEmail"
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "src/services/emailService.js",
+      "listOfFunctions": [
+        {
+          "functionName": "src/services/emailService.js-initEmailClient",
+          "Calls": [
+            "src/services/logService.js-logInfo"
+          ]
+        },
+        {
+          "functionName": "src/services/emailService.js-sendWelcomeEmail",
+          "Calls": [
+            "src/services/emailService.js-initEmailClient",
+            "src/services/logService.js-logInfo"
+          ]
+        },
+        {
+          "functionName": "src/services/emailService.js-sendOrderConfirmation",
+          "Calls": [
+            "src/services/emailService.js-initEmailClient",
+            "src/services/logService.js-logInfo"
+          ]
+        },
+        {
+          "functionName": "src/services/emailService.js-sendCancellationEmail",
+          "Calls": [
+            "src/services/emailService.js-initEmailClient",
+            "src/services/logService.js-logInfo"
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "src/services/logService.js",
+      "listOfFunctions": [
+        {
+          "functionName": "src/services/logService.js-initLogger",
+          "Calls": [
+            "src/services/logService.js-logInfo"
+          ]
+        },
+        {
+          "functionName": "src/services/logService.js-logInfo",
+          "Calls": []
+        },
+        {
+          "functionName": "src/services/logService.js-logError",
+          "Calls": [
+            "src/services/logService.js-logInfo"
+          ]
+        }
+      ]
+    }
+  ]
+}

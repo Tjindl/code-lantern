@@ -51,6 +51,15 @@ async def upload_repo(file: UploadFile = File(...)):
         # cleanup - remove zip file after extraction
         os.remove(zip_path)
 
+        # Record latest repo id for convenience endpoints
+        try:
+            latest_ptr = os.path.join(BASE_REPO_DIR, 'LATEST')
+            os.makedirs(BASE_REPO_DIR, exist_ok=True)
+            with open(latest_ptr, 'w') as lp:
+                lp.write(repo_id)
+        except Exception:
+            pass
+
         return {
             "status": "ok",
             "repo_id": repo_id,
