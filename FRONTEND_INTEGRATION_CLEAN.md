@@ -210,10 +210,10 @@ async function apiCall(url, options = {}) {
   architecture_map: {
     listOfFiles: [
       {
-        filePath: "/absolute/path/to/file.py",
+        filePath: "src/main.py",               // Project-relative path
         listOfFunctions: [
           {
-            functionName: "/absolute/path/to/file.py-function_name",
+            functionName: "src/main.py-function_name",
             calls: ["other_function", "another_function"]
           }
         ]

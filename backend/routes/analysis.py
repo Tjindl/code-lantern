@@ -35,9 +35,9 @@ def find_source_files(repo_path: str) -> List[str]:
         for file in files:
             if any(file.endswith(ext) for ext in SUPPORTED_EXTENSIONS.keys()):
                 file_path = os.path.join(root, file)
-                # Use absolute path instead of relative
-                absolute_path = os.path.abspath(file_path)
-                source_files.append(absolute_path)
+                # Make path relative to repo root for consistent project-relative paths
+                relative_path = os.path.relpath(file_path, repo_path)
+                source_files.append(relative_path)
     
     return source_files
 
@@ -237,8 +237,7 @@ Format your response as JSON:
 
 def analyze_file(file_path: str, repo_path: str) -> Dict[str, Any]:
     """Analyze a single file and extract function information"""
-    # file_path is already absolute, use it directly
-    full_path = file_path
+    full_path = os.path.join(repo_path, file_path)
     
     try:
         with open(full_path, 'r', encoding='utf-8') as f:

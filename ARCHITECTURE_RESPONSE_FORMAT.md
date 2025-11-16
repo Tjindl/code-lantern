@@ -14,10 +14,10 @@ This endpoint returns the complete project architecture as JSON. Here's the exac
   "architecture_map": {
     "listOfFiles": [
       {
-        "filePath": "/absolute/path/to/processed_repos/uuid/relative/path/to/file.py",
+        "filePath": "src/main.py",
         "listOfFunctions": [
           {
-            "functionName": "/absolute/path/to/processed_repos/uuid/file.py-function_name",
+            "functionName": "src/main.py-function_name",
             "calls": ["other_function", "another_function"]
           }
         ]
@@ -37,56 +37,56 @@ This endpoint returns the complete project architecture as JSON. Here's the exac
   "architecture_map": {
     "listOfFiles": [
       {
-        "filePath": "/Users/username/Code/project/processed_repos/a1b2c3d4/main.py",
+        "filePath": "src/main.py",
         "listOfFunctions": [
           {
-            "functionName": "/Users/username/Code/project/processed_repos/a1b2c3d4/main.py-main",
+            "functionName": "src/main.py-main",
             "calls": ["load_configuration", "initialize_app", "start_server"]
           },
           {
-            "functionName": "/Users/username/Code/project/processed_repos/a1b2c3d4/main.py-load_configuration", 
+            "functionName": "src/main.py-load_configuration", 
             "calls": []
           },
           {
-            "functionName": "/Users/username/Code/project/processed_repos/a1b2c3d4/main.py-initialize_app",
+            "functionName": "src/main.py-initialize_app",
             "calls": ["setup_routes", "configure_middleware"]
           }
         ]
       },
       {
-        "filePath": "/Users/username/Code/project/processed_repos/a1b2c3d4/services/auth.py",
+        "filePath": "services/auth.py",
         "listOfFunctions": [
           {
-            "functionName": "/Users/username/Code/project/processed_repos/a1b2c3d4/services/auth.py-authenticate_user",
+            "functionName": "services/auth.py-authenticate_user",
             "calls": ["find_user_by_username", "verify_password", "generate_session_token"]
           },
           {
-            "functionName": "/Users/username/Code/project/processed_repos/a1b2c3d4/services/auth.py-find_user_by_username",
+            "functionName": "services/auth.py-find_user_by_username",
             "calls": ["database_query"]
           },
           {
-            "functionName": "/Users/username/Code/project/processed_repos/a1b2c3d4/services/auth.py-verify_password",
+            "functionName": "services/auth.py-verify_password",
             "calls": []
           }
         ]
       },
       {
-        "filePath": "/Users/username/Code/project/processed_repos/a1b2c3d4/utils/helpers.js",
+        "filePath": "utils/helpers.js",
         "listOfFunctions": [
           {
-            "functionName": "/Users/username/Code/project/processed_repos/a1b2c3d4/utils/helpers.js-validateEmail",
+            "functionName": "utils/helpers.js-validateEmail",
             "calls": []
           },
           {
-            "functionName": "/Users/username/Code/project/processed_repos/a1b2c3d4/utils/helpers.js-formatCurrency",
+            "functionName": "utils/helpers.js-formatCurrency",
             "calls": []
           },
           {
-            "functionName": "/Users/username/Code/project/processed_repos/a1b2c3d4/utils/helpers.js-calculateTotal",
+            "functionName": "utils/helpers.js-calculateTotal",
             "calls": []
           },
           {
-            "functionName": "/Users/username/Code/project/processed_repos/a1b2c3d4/utils/helpers.js-fetchUserData",
+            "functionName": "utils/helpers.js-fetchUserData",
             "calls": ["processUserData"]
           }
         ]
@@ -109,25 +109,25 @@ This endpoint returns the complete project architecture as JSON. Here's the exac
 - **listOfFiles**: Array containing all analyzed files
   
 ### 3. File Object Structure:
-- **filePath**: Absolute path to the file (e.g., "/Users/username/project/processed_repos/uuid/src/main.py")
+- **filePath**: Project-relative path (e.g., "src/main.py", "utils/helpers.js")
 - **listOfFunctions**: Array of all functions found in this file
 
 ### 4. Function Object Structure:
-- **functionName**: Unique name in format `{absoluteFilePath}-{functionName}` 
-  - Example: "/Users/username/project/processed_repos/uuid/main.py-load_configuration"
-  - Example: "/Users/username/project/processed_repos/uuid/services/auth.py-authenticate_user"
+- **functionName**: Unique name in format `{filePath}-{functionName}` 
+  - Example: "src/main.py-load_configuration"
+  - Example: "services/auth.py-authenticate_user"
 - **calls**: Array of function names that this function calls
   - Contains just the function names (not the full unique names)
   - Example: ["load_configuration", "initialize_app"]
 
 ## Function Name Format:
 
-The `functionName` uses this pattern: `{absoluteFilePath}-{actualFunctionName}`
+The `functionName` uses this pattern: `{filePath}-{actualFunctionName}`
 
 **Examples:**
-- File: `/Users/username/project/processed_repos/uuid/main.py`, Function: `main()` → `"/Users/username/project/processed_repos/uuid/main.py-main"`
-- File: `/Users/username/project/processed_repos/uuid/services/auth.py`, Function: `authenticate_user()` → `"/Users/username/project/processed_repos/uuid/services/auth.py-authenticate_user"`
-- File: `/Users/username/project/processed_repos/uuid/utils/helpers.js`, Function: `validateEmail()` → `"/Users/username/project/processed_repos/uuid/utils/helpers.js-validateEmail"`
+- File: `src/main.py`, Function: `main()` → `"src/main.py-main"`
+- File: `services/auth.py`, Function: `authenticate_user()` → `"services/auth.py-authenticate_user"`
+- File: `utils/helpers.js`, Function: `validateEmail()` → `"utils/helpers.js-validateEmail"`
 
 ## Function Calls Format:
 

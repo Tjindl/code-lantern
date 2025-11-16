@@ -32,10 +32,10 @@ GET /api/analyze/{repo_id}
   "architecture_map": {
     "listOfFiles": [
       {
-        "filePath": "/absolute/path/to/file.py",
+        "filePath": "src/main.py",
         "listOfFunctions": [
           {
-            "functionName": "/absolute/path/to/file.py-function_name",
+            "functionName": "src/main.py-function_name",
             "calls": ["other_function", "another_function"]
           }
         ]
@@ -58,7 +58,7 @@ GET /api/files/{repo_id}
   "totalFiles": 3,
   "files": [
     {
-      "filePath": "/absolute/path/to/file.py",
+      "filePath": "src/user_service.py",
       "functionCount": 2,
       "functions": ["function1", "function2"]
     }
@@ -76,7 +76,7 @@ GET /api/function/{repo_id}?file_path={file_path}&function_name={function_name}
 {
   "status": "ok",
   "repo_id": "uuid-string",
-  "file_path": "/absolute/path/to/file.py",
+  "file_path": "src/user_service.py",
   "details": {
     "function_name": "create_user",
     "inputs": "username (str), email (str), age (int)",

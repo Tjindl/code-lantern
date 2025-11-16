@@ -323,23 +323,23 @@ GET /api/analyze/{repo_id}
   "architecture_map": {
     "listOfFiles": [
       {
-        "filePath": "/Users/username/Code/project/processed_repos/uuid/src/main.py",
+        "filePath": "src/main.py",
         "listOfFunctions": [
           {
-            "functionName": "/Users/username/Code/project/processed_repos/uuid/src/main.py-process_data",
+            "functionName": "src/main.py-process_data",
             "calls": ["validate_input", "save_result"]
           },
           {
-            "functionName": "/Users/username/Code/project/processed_repos/uuid/src/main.py-validate_input", 
+            "functionName": "src/main.py-validate_input", 
             "calls": ["check_format", "sanitize"]
           }
         ]
       },
       {
-        "filePath": "/Users/username/Code/project/processed_repos/uuid/src/utils.js",
+        "filePath": "src/utils.js",
         "listOfFunctions": [
           {
-            "functionName": "/Users/username/Code/project/processed_repos/uuid/src/utils.js-formatData",
+            "functionName": "src/utils.js-formatData",
             "calls": ["parseJSON", "validateSchema"]
           }
         ]
@@ -365,10 +365,10 @@ The main architecture endpoint `/api/analyze/{repo_id}` returns a complete JSON 
 {
   "listOfFiles": [
     {
-      "filePath": "/absolute/path/to/processed_repos/uuid/relative/path/to/file.py",
+      "filePath": "src/main.py",
       "listOfFunctions": [
         {
-          "functionName": "/absolute/path/to/processed_repos/uuid/file.py-function_name",
+          "functionName": "src/main.py-function_name",
           "calls": ["other_function", "another_function"]
         }
       ]
@@ -380,9 +380,9 @@ The main architecture endpoint `/api/analyze/{repo_id}` returns a complete JSON 
 ### Key Components:
 
 - **listOfFiles**: Array of all analyzed files
-- **filePath**: Absolute path to the file on the server
+- **filePath**: Project-relative path from uploaded ZIP root
 - **listOfFunctions**: All functions found in that file
-- **functionName**: Format: `{absoluteFilePath}-{functionName}`
+- **functionName**: Format: `{filePath}-{functionName}`
 - **calls**: Array of function names this function calls
 
 This structure enables:
