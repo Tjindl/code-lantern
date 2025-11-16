@@ -1,5 +1,5 @@
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -68,6 +68,8 @@ web_modules/
 # dotenv environment variable files
 .env
 .env.*
+.env.local
+.env.production
 !.env.example
 
 # parcel-bundler cache (https://parceljs.org/)
@@ -137,3 +139,48 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.pyc
+dist/
+build/
+*.egg-info/
+
+# FastAPI specific
+processed_repos/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Test outputs
+test_output/
+debug_output/

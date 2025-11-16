@@ -24,4 +24,7 @@ fastapi-cors==0.0.6
 
 # --- Optional but recommended ---
 rich                  # pretty console logs
-python-dotenv         # environment variables
+python-dotenv==1.0.0         # environment variables
+
+# Additional dependencies for Gemini API integration
+google-generativeai==0.3.2

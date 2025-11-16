@@ -7,6 +7,8 @@ Base URL: http://localhost:8000
 ## WORKFLOW:
 1. Upload ZIP file to /api/upload
 2. Use returned repo_id to analyze project via /api/analyze/{repo_id}
+3. Get file list via /api/files/{repo_id}
+4. Get function details via /api/function/{repo_id}?file_path=...&function_name=...
 
 ## ENDPOINTS:
 
@@ -20,11 +22,6 @@ Response (Success):
   "status": "ok",
   "repo_id": "63e61aef-7bcd-4fc9-a61b-3a37024409c2",
   "extracted_to": "processed_repos/63e61aef-7bcd-4fc9-a61b-3a37024409c2"
-}
-
-Response (Error):
-{
-  "detail": "Only ZIP files are allowed"
 }
 
 ### 2. Analyze Project
@@ -51,35 +48,79 @@ Response (Success):
   }
 }
 
-Response (Error):
+### 3. Get Project Files (NEW)
+GET /api/files/{repo_id}
+
+Response (Success):
 {
-  "detail": "Repository not found"
+  "status": "ok",
+  "repo_id": "63e61aef-7bcd-4fc9-a61b-3a37024409c2",
+  "totalFiles": 2,
+  "files": [
+    {
+      "filePath": "src/user_service.py",
+      "functionCount": 3,
+      "functions": ["create_user", "validate_email", "generate_id"]
+    },
+    {
+      "filePath": "src/utils.js", 
+      "functionCount": 2,
+      "functions": ["calculateTotalPrice", "formatCurrency"]
+    }
+  ]
 }
 
-## FRONTEND INTEGRATION NOTES:
-- CORS is enabled for all origins
-- All endpoints return JSON
-- Error responses follow FastAPI standard format
-- File upload uses FormData with 'file' field
-- Architecture map follows the specified structure:
-  MainThing { listOfFiles }
-  File { filePath, listOfFunctions }  
-  Function { functionName, calls }
+### 4. Get Function Details (NEW - Gemini Powered)
+GET /api/function/{repo_id}?file_path={file_path}&function_name={function_name}
 
-## EXAMPLE FRONTEND CODE:
+Response (Success):
+{
+  "status": "ok",
+  "repo_id": "63e61aef-7bcd-4fc9-a61b-3a37024409c2",
+  "file_path": "src/user_service.py",
+  "details": {
+    "function_name": "create_user",
+    "inputs": "username (str): User's username, email (str): User's email address, age (int): User's age",
+    "outputs": "dict: User object containing id, username, email, age, and created_at timestamp",
+    "description": "Creates a new user with validation. Validates age requirement (18+) and generates unique ID and timestamp."
+  }
+}
+
+## FRONTEND PAGES STRUCTURE:
+
+### Page 1: Upload & Architecture Overview
+- File upload
+- Architecture map visualization
+- Basic stats (file count, function count)
+
+### Page 2: File Browser (NEW)
+- List of all files in project
+- Function count per file
+- Expandable file sections showing function lists
+
+### Page 3: Function Details (NEW)
+- Function name, inputs, outputs
+- AI-generated description via Gemini
+- Actual function code
+- Back navigation to file browser
+
+## ENVIRONMENT SETUP:
+Create .env file with:
+GEMINI_API_KEY=your_gemini_api_key_here
+
+Get API key from: https://makersuite.google.com/app/apikey
+
+## EXAMPLE FRONTEND NAVIGATION:
 ```javascript
-// Upload file
-const formData = new FormData();
-formData.append('file', zipFile);
-const uploadResponse = await fetch('/api/upload', {
-  method: 'POST',
-  body: formData
-});
-const { repo_id } = await uploadResponse.json();
+// 1. Upload and analyze
+const { repo_id } = await uploadAndAnalyze(zipFile);
 
-// Analyze project  
-const analysisResponse = await fetch(`/api/analyze/${repo_id}`);
-const result = await analysisResponse.json();
-console.log(result.architecture_map);
+// 2. Navigate to file browser
+const filesData = await fetch(`/api/files/${repo_id}`);
+// Show file list with function counts
+
+// 3. User clicks on a function
+const functionDetails = await fetch(`/api/function/${repo_id}?file_path=${filePath}&function_name=${funcName}`);
+// Show detailed function page with AI description
 ```
 """
