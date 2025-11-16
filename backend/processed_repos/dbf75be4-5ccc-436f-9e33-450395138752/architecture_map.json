@@ -1,0 +1,56 @@
+{
+  "listOfFiles": [
+    {
+      "filePath": "src/utils.js",
+      "listOfFunctions": [
+        {
+          "functionName": "src/utils.js-calculateSum",
+          "calls": [
+            "processData",
+            "multiply"
+          ]
+        },
+        {
+          "functionName": "src/utils.js-processData",
+          "calls": [
+            "calculateSum",
+            "multiply"
+          ]
+        },
+        {
+          "functionName": "src/utils.js-multiply",
+          "calls": [
+            "calculateSum",
+            "processData"
+          ]
+        }
+      ]
+    },
+    {
+      "filePath": "src/main.py",
+      "listOfFunctions": [
+        {
+          "functionName": "src/main.py-hello_world",
+          "calls": [
+            "greet_user",
+            "format_greeting"
+          ]
+        },
+        {
+          "functionName": "src/main.py-greet_user",
+          "calls": [
+            "hello_world",
+            "format_greeting"
+          ]
+        },
+        {
+          "functionName": "src/main.py-format_greeting",
+          "calls": [
+            "greet_user",
+            "hello_world"
+          ]
+        }
+      ]
+    }
+  ]
+}

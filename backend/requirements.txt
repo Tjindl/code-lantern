@@ -1,0 +1,27 @@
+# --- Web Framework ---
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+tree_sitter_javascript 
+tree_sitter_python
+# --- AI / Embeddings ---
+openai
+tiktoken
+
+# --- Vector Database ---
+chromadb
+
+# --- Code Parsing ---
+tree_sitter
+tree_sitter_javascript
+tree_sitter_python
+
+# --- Utilities ---
+pydantic
+python-multipart==0.0.6      # file uploads
+aiofiles              # async file reading
+requests==2.31.0
+fastapi-cors==0.0.6
+
+# --- Optional but recommended ---
+rich                  # pretty console logs
+python-dotenv         # environment variables
