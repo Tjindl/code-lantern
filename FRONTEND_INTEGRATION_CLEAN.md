@@ -1,6 +1,6 @@
-# 🚀 Code Lantern API - Frontend Quick Reference
+# 🚀 Code Lantern API - Frontend Integration Guide
 
-## 📡 All Endpoints
+## 📡 API Endpoints
 
 ```
 POST   /api/upload                     # Upload ZIP file
@@ -37,43 +37,46 @@ const funcResponse = await fetch(`/api/function/${repo_id}?file_path=${file}&fun
 const { details } = await funcResponse.json();
 ```
 
-## 📊 Project Summary Data
+## 📊 Project Summary Data Structure
 
 ```javascript
-// What you get from /api/project-summary/{repo_id}
+// /api/project-summary/{repo_id} returns:
 {
   project_stats: {
     file_stats: {
-      total_files: 8,
-      file_extensions: {".py": 5, ".js": 2},
-      estimated_lines_of_code: 1250
+      total_files: 8,                           // Number of files
+      file_extensions: {".py": 5, ".js": 2},    // File type breakdown  
+      estimated_lines_of_code: 1250             // Total lines
     },
     function_stats: {
-      total_functions: 23,
-      average_complexity: 4.2,
-      functions_per_file: 2.9
+      total_functions: 23,                      // Total functions
+      average_complexity: 4.2,                 // Avg calls per function
+      functions_per_file: 2.9                  // Functions/file ratio
     },
     language_stats: {
-      primary_language: "Python",
-      language_percentages: {"Python": 71.4, "JavaScript": 28.6}
+      primary_language: "Python",              // Main language
+      language_percentages: {                  // % breakdown
+        "Python": 71.4, 
+        "JavaScript": 28.6
+      }
     },
     complexity_metrics: {
-      code_health_score: 87,        // 0-100
-      project_size: "Medium",       // Small/Medium/Large
-      architecture_complexity: "Moderate"  // Simple/Moderate/Complex
+      code_health_score: 87,                   // 0-100 health score
+      project_size: "Medium",                  // Small/Medium/Large
+      architecture_complexity: "Moderate"      // Simple/Moderate/Complex
     }
   },
   ai_summary: {
-    overview: "Well-structured web application...",
-    strengths: ["Clean architecture", "Good organization"],
-    recommendations: ["Add unit tests", "Implement logging"],
-    architecture_insights: "Project follows MVC patterns...",
-    technology_assessment: "Modern Python/JavaScript stack..."
+    overview: "Well-structured web application...",           // AI description
+    strengths: ["Clean architecture", "Good organization"],   // What's good
+    recommendations: ["Add unit tests", "Implement logging"], // Suggestions
+    architecture_insights: "Project follows MVC patterns...", // Architecture
+    technology_assessment: "Modern Python/JavaScript stack..." // Tech review
   }
 }
 ```
 
-## 🎨 Dashboard Components
+## 🎨 Dashboard Component Examples
 
 ### Health Score Widget
 ```javascript
@@ -96,7 +99,25 @@ function HealthScore({ score, projectSize }) {
 }
 ```
 
-### Stats Grid
+### Language Breakdown
+```javascript
+function LanguageChart({ languagePercentages, primaryLanguage }) {
+  const chartData = Object.entries(languagePercentages).map(([lang, percent]) => ({
+    name: lang,
+    value: percent
+  }));
+  
+  return (
+    <div className="language-widget">
+      <h3>Languages</h3>
+      <PieChart data={chartData} />
+      <p>Primary: {primaryLanguage}</p>
+    </div>
+  );
+}
+```
+
+### Project Stats Grid
 ```javascript
 function StatsGrid({ fileStats, functionStats }) {
   const stats = [
@@ -154,9 +175,9 @@ function AIInsights({ aiSummary }) {
 }
 ```
 
-## 🎯 Frontend Pages
+## 🎯 Frontend Page Structure
 
-1. **Upload Page** - File upload + basic results
+1. **Upload Page** - File upload + basic analysis results
 2. **Dashboard Page** - Project summary with health scores
 3. **File Browser** - Navigate files and functions
 4. **Function Details** - Individual function analysis
@@ -177,6 +198,27 @@ async function apiCall(url, options = {}) {
   } catch (error) {
     console.error('API Error:', error.message);
     return null;
+  }
+}
+```
+
+## 🏗️ Architecture JSON Structure
+
+```javascript
+// /api/analyze/{repo_id} returns:
+{
+  architecture_map: {
+    listOfFiles: [
+      {
+        filePath: "/absolute/path/to/file.py",
+        listOfFunctions: [
+          {
+            functionName: "/absolute/path/to/file.py-function_name",
+            calls: ["other_function", "another_function"]
+          }
+        ]
+      }
+    ]
   }
 }
 ```
