@@ -8,7 +8,7 @@ export default function DependencyGraph({ data }) {
     <CytoscapeComponent
       elements={data.elements}
       style={{ width: "100%", height: "600px" }}
-      layout={{ name: "cose" }} // automatic layout
+      layout={{ name: "cose" }} 
       stylesheet={[
         {
           selector: "node",
