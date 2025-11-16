@@ -36,10 +36,10 @@ Response (Success):
   "architecture_map": {
     "listOfFiles": [
       {
-        "filePath": "src/main.py",
+        "filePath": "/absolute/path/to/processed_repos/uuid/src/main.py",
         "listOfFunctions": [
           {
-            "functionName": "src/main.py-hello_world",
+            "functionName": "/absolute/path/to/processed_repos/uuid/src/main.py-hello_world",
             "calls": ["greet_user"]
           }
         ]
@@ -48,7 +48,7 @@ Response (Success):
   }
 }
 
-### 3. Get Project Files (NEW)
+### 3. Get Project Files
 GET /api/files/{repo_id}
 
 Response (Success):
@@ -58,32 +58,73 @@ Response (Success):
   "totalFiles": 2,
   "files": [
     {
-      "filePath": "src/user_service.py",
+      "filePath": "/absolute/path/to/processed_repos/uuid/src/user_service.py",
       "functionCount": 3,
       "functions": ["create_user", "validate_email", "generate_id"]
     },
     {
-      "filePath": "src/utils.js", 
+      "filePath": "/absolute/path/to/processed_repos/uuid/src/utils.js", 
       "functionCount": 2,
       "functions": ["calculateTotalPrice", "formatCurrency"]
     }
   ]
 }
 
-### 4. Get Function Details (NEW - Gemini Powered)
+### 4. Get Function Details (Gemini Powered)
 GET /api/function/{repo_id}?file_path={file_path}&function_name={function_name}
 
 Response (Success):
 {
   "status": "ok",
   "repo_id": "63e61aef-7bcd-4fc9-a61b-3a37024409c2",
-  "file_path": "src/user_service.py",
+  "file_path": "/absolute/path/to/processed_repos/uuid/src/user_service.py",
   "details": {
     "function_name": "create_user",
     "inputs": "username (str): User's username, email (str): User's email address, age (int): User's age",
     "outputs": "dict: User object containing id, username, email, age, and created_at timestamp",
     "description": "Creates a new user with validation. Validates age requirement (18+) and generates unique ID and timestamp."
   }
+}
+
+### 5. Get AI Project Summary (NEW - Comprehensive Analysis)
+GET /api/project-summary/{repo_id}
+
+Response (Success):
+{
+  "status": "ok",
+  "repo_id": "63e61aef-7bcd-4fc9-a61b-3a37024409c2",
+  "project_stats": {
+    "file_stats": {
+      "total_files": 8,
+      "file_extensions": {".py": 5, ".js": 2, ".json": 1},
+      "estimated_lines_of_code": 1250
+    },
+    "function_stats": {
+      "total_functions": 23,
+      "total_function_calls": 67,
+      "average_complexity": 4.2,
+      "max_complexity": 12,
+      "functions_per_file": 2.9
+    },
+    "language_stats": {
+      "languages": {"Python": 5, "JavaScript": 2},
+      "language_percentages": {"Python": 71.4, "JavaScript": 28.6},
+      "primary_language": "Python"
+    },
+    "complexity_metrics": {
+      "code_health_score": 87,
+      "project_size": "Medium",
+      "architecture_complexity": "Moderate"
+    }
+  },
+  "ai_summary": {
+    "overview": "This is a well-structured web application with clear separation between backend and frontend components",
+    "strengths": ["Clean architecture", "Good function organization", "Appropriate technology choices"],
+    "recommendations": ["Add unit tests", "Consider API documentation", "Implement error logging"],
+    "architecture_insights": "Project follows MVC patterns with clear component separation",
+    "technology_assessment": "Modern technology stack with Python backend and JavaScript frontend"
+  },
+  "generated_at": "2024-01-15T10:30:45"
 }
 
 ## FRONTEND PAGES STRUCTURE:

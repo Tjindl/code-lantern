@@ -515,20 +515,20 @@ class APITester:
             # Summary
             print_header("📊 TEST RESULTS SUMMARY")
             
-            passed = sum(results.values())
-            total = len(results)
+            passed_count = sum(1 for result in results.values() if result)
+            total_count = len(results)
             
-            for test_name, passed in results.items():
-                status = "✅ PASS" if passed else "❌ FAIL"
+            for test_name, result in results.items():
+                status = "✅ PASS" if result else "❌ FAIL"
                 print(f"{status} {test_name}")
             
-            print(f"\n{Colors.BOLD}Overall Result: {passed}/{total} tests passed{Colors.END}")
+            print(f"\n{Colors.BOLD}Overall Result: {passed_count}/{total_count} tests passed{Colors.END}")
             
-            if passed == total:
+            if passed_count == total_count:
                 print_success("🎉 ALL TESTS PASSED! API is ready for production")
                 return True
             else:
-                print_error(f"❌ {total - passed} tests failed. Fix issues before deployment")
+                print_error(f"❌ {total_count - passed_count} tests failed. Fix issues before deployment")
                 return False
         
         finally:
