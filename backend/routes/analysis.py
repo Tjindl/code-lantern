@@ -516,32 +516,44 @@ def analyze_project_statistics(architecture_map: dict, repo_path: str) -> dict:
     }
 
 def calculate_code_health_score(total_files: int, total_functions: int, avg_complexity: float, language_stats: dict) -> int:
-    """Calculate code health score out of 100"""
+    """Calculate code health score out of 100 - strict and honest evaluation"""
     score = 100
     
-    # Penalize for too few or too many files
+    # Penalize for project size issues
     if total_files < 3:
-        score -= 10  # Very small project
+        score -= 20  # Very small project, likely incomplete
+    elif total_files > 100:
+        score -= 15  # Very large, likely needs better organization
     elif total_files > 50:
-        score -= 5   # Large project (needs more organization)
-    
-    # Penalize for high complexity
-    if avg_complexity > 10:
-        score -= 20
-    elif avg_complexity > 7:
         score -= 10
-    elif avg_complexity > 5:
-        score -= 5
     
-    # Bonus for good function distribution
+    # Strict complexity penalties
+    if avg_complexity > 15:
+        score -= 40  # Very high complexity - major refactoring needed
+    elif avg_complexity > 10:
+        score -= 30  # High complexity
+    elif avg_complexity > 7:
+        score -= 20  # Moderate-high complexity
+    elif avg_complexity > 5:
+        score -= 10  # Slightly high complexity
+    elif avg_complexity > 3:
+        score -= 5   # Room for improvement
+    
+    # Penalize poor function distribution
     if total_files > 0:
         functions_per_file = total_functions / total_files
-        if 2 <= functions_per_file <= 8:
-            score += 5  # Good function distribution
+        if functions_per_file < 1:
+            score -= 15  # Too few functions, might indicate incomplete analysis
+        elif functions_per_file > 15:
+            score -= 20  # Too many functions per file - needs splitting
+        elif functions_per_file > 10:
+            score -= 10
+        elif functions_per_file < 2 or functions_per_file > 8:
+            score -= 5
     
-    # Bonus for multi-language projects
-    if len(language_stats) > 1:
-        score += 5
+    # Small bonus for multi-language projects (but not much)
+    if len(language_stats) > 2:
+        score += 3
     
     return max(0, min(100, score))
 
@@ -585,8 +597,37 @@ async def generate_project_ai_summary(project_stats: dict, architecture_map: dic
             "technology_assessment": f"Primary language: {lang.get('primary_language', 'Unknown')}"
         }
     try:
-        print(f"[AI] Generating project summary via {AI_MODEL_NAME if 'AI_MODEL_NAME' in globals() else model}")
-        # ...existing prompt build...
+        print(f"[AI] Generating project summary via {model}")
+        
+        # Build the prompt
+        fs = project_stats.get('file_stats', {})
+        fns = project_stats.get('function_stats', {})
+        lang = project_stats.get('language_stats', {})
+        cmx = project_stats.get('complexity_metrics', {})
+        
+        prompt = f"""
+You are a senior software architect reviewing a codebase. Analyze this project and provide insights in JSON format.
+
+Project Statistics:
+- Total Files: {fs.get('total_files', 0)}
+- Total Functions: {fns.get('total_functions', 0)}
+- Lines of Code: {fs.get('estimated_lines_of_code', 0)}
+- Primary Language: {lang.get('primary_language', 'Unknown')}
+- Languages: {', '.join(lang.get('languages', {}).keys())}
+- Average Complexity: {fns.get('average_complexity', 0)}
+- Code Health Score: {cmx.get('code_health_score', 0)}/100
+- Project Size: {cmx.get('project_size', 'Unknown')}
+
+Provide a comprehensive analysis in this exact JSON format:
+{{
+    "overview": "2-3 sentence overview of the project architecture and purpose",
+    "strengths": ["strength 1", "strength 2", "strength 3"],
+    "recommendations": ["recommendation 1", "recommendation 2", "recommendation 3"],
+    "architecture_insights": "Brief analysis of the architecture patterns and design",
+    "technology_assessment": "Analysis of the technology stack and language choices"
+}}
+"""
+        
         resp = model.generate_content(prompt)
         text = getattr(resp, 'text', '') or ''
         i, j = text.find('{'), text.rfind('}')

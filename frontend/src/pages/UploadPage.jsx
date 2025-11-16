@@ -31,13 +31,10 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="w-screen h-screen flex justify-between items-center bg-[#1A1D1E] shadow-lg border border-black px-32">
+    <div className="w-screen h-screen flex justify-between items-center bg-[#1A1D1E] px-16 gap-16">
       {/* LEFT: Title + tagline */}
-      <div>
-        <h1
-          className="text-white font-[100] text-[128px] font-['JetBrains_Mono'] leading-none"
-          style={{ width: "674px", height: "333px" }}
-        >
+      <div className="flex flex-col justify-center flex-shrink-0">
+        <h1 className="text-white font-[100] text-[128px] font-['JetBrains_Mono'] leading-none">
           code<br />
           lantern_
         </h1>
@@ -48,21 +45,17 @@ export default function UploadPage() {
         </p>
       </div>
 
-      {/* RIGHT: Description + upload box */}
-      <div className="flex flex-col items-start space-y-6">
-        {/* Text description */}
-        <div className="w-[486px] h-[68px] text-white font-['JetBrains_Mono'] text-2xl font-bold leading-normal mb-8">
+      {/* RIGHT: Upload section */}
+      <div className="flex flex-col items-start space-y-6 flex-shrink-0">
+        <div className="w-[486px] text-white font-['JetBrains_Mono'] text-2xl font-bold leading-normal">
           generate architecture maps, developer docs, and dependency insights automatically
         </div>
 
-        {/* Upload rectangle */}
-        <div className="w-[452px] h-[179px] border border-white bg-transparent rounded-lg flex flex-col items-center justify-start p-8">
-          {/* Title inside rectangle */}
+        <div className="w-[452px] border border-white bg-transparent rounded-lg flex flex-col items-center justify-start p-8">
           <p className="text-white font-['JetBrains_Mono'] text-2xl font-bold mb-3">
-            Upload Repo (.zip)
+            upload repo (.zip)
           </p>
 
-          {/* Hidden input for file selection */}
           <input
             type="file"
             accept=".zip"
@@ -71,7 +64,6 @@ export default function UploadPage() {
             className="hidden"
           />
 
-          {/* Choose File button */}
           <button
             className="w-[380px] h-[38px] bg-white border border-black rounded-[10px] shadow-md 
                         text-black font-['JetBrains_Mono'] text-base font-thin 
@@ -79,10 +71,9 @@ export default function UploadPage() {
             onClick={() => fileInputRef.current.click()}
             disabled={uploading}
           >
-            {uploading ? "Uploading..." : "Choose File"}
+            {uploading ? "uploading..." : "choose file"}
           </button>
 
-          {/* Drag and drop text */}
           <p className="mt-3 text-white font-['JetBrains_Mono'] text-sm font-light">
             drag and drop supported
           </p>

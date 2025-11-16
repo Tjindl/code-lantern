@@ -115,21 +115,21 @@ export default function DeepDiveTab() {
                                 <>
                                   <div className="flex gap-2">
                                     <strong className="text-[#00E0B8] min-w-[80px]">Inputs:</strong>
-                                    <span className="text-gray-300">{details.inputs || '—'}</span>
+                                    <span className="text-gray-300">{String(details.inputs) || '—'}</span>
                                   </div>
                                   <div className="flex gap-2">
                                     <strong className="text-[#00E0B8] min-w-[80px]">Outputs:</strong>
-                                    <span className="text-gray-300">{details.outputs || '—'}</span>
+                                    <span className="text-gray-300">{String(details.outputs) || '—'}</span>
                                   </div>
                                   <div className="flex gap-2">
                                     <strong className="text-[#00E0B8] min-w-[80px]">Description:</strong>
-                                    <span className="text-gray-300">{details.description || '—'}</span>
+                                    <span className="text-gray-300">{String(details.description) || '—'}</span>
                                   </div>
-                                  {details.calls && details.calls.length > 0 && (
+                                  {details.calls && Array.isArray(details.calls) && details.calls.length > 0 && (
                                     <div>
                                       <strong className="text-[#00E0B8]">Calls:</strong>
                                       <ul className="list-disc ml-5 mt-1 space-y-1 text-gray-300">
-                                        {details.calls.map((c, i) => (<li key={i}>{c}</li>))}
+                                        {details.calls.map((c, i) => (<li key={i}>{String(c)}</li>))}
                                       </ul>
                                     </div>
                                   )}
