@@ -19,6 +19,20 @@
 //       </div>
 //     );
 //   }
+
+// import React from 'react';
+// import FunctionCallGraph from './components/FunctionCallGraph';
+
+// function App() {
+//   return (
+//     <div style={{ width: '100%', height: '100vh' }}>
+//       <FunctionCallGraph />
+//     </div>
+//   );
+// }
+
+// export default App;
+
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import UploadPage from "./pages/UploadPage";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
