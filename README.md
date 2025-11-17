@@ -47,7 +47,7 @@ python -m http.server 3000
 
 ### API Access
 - **Backend API**: http://localhost:8000
-- **Frontend**: http://localhost:3000
+- **Frontend**: http://localhost:5173/
 - **API Documentation**: http://localhost:8000/docs
 
 ## 📊 API Endpoints
