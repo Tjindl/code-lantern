@@ -52,13 +52,18 @@ app.include_router(upload_router, prefix="/api")
 app.include_router(analysis_router, prefix="/api")
 app.include_router(github_router, prefix="/api")
 
+import os
+
+# ... imports ...
+
 if __name__ == "__main__":
     import uvicorn
+    port = int(os.getenv("PORT", 8000))
     uvicorn.run(
         "main:app", 
         host="0.0.0.0", 
-        port=8000, 
+        port=port, 
         reload=True,
-        reload_dirs=["routes", "core"],  # Only watch backend code, not processed_repos
+        reload_dirs=["routes", "core"],
         reload_excludes=["processed_repos/*"]
     )

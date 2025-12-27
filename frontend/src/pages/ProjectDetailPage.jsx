@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import OverviewTab from "../components/OverviewTab";
 import ArchitectureTab from "../components/ArchitectureTab";
 import DeepDiveTab from "../components/DeepDiveTab";
+import { API_BASE_URL } from "../config";
 
 export default function ProjectDetailPage() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -13,7 +14,7 @@ export default function ProjectDetailPage() {
   const hasLoaded = useRef(false);
 
   const navigate = useNavigate();
-  const apiBase = 'http://localhost:8000';
+  const apiBase = API_BASE_URL;
 
   const tabs = [
     { id: "overview", label: "Overview", icon: "📊" },
@@ -91,8 +92,8 @@ export default function ProjectDetailPage() {
                   <span className="text-white font-medium">{summary.project_name}</span>
                   {summary.project_source && (
                     <span className={`text-xs px-2 py-0.5 rounded-full ${summary.project_source === 'github'
-                        ? 'bg-[#238636]/20 text-[#3fb950]'
-                        : 'bg-[var(--accent-cyan)]/20 text-[var(--accent-cyan)]'
+                      ? 'bg-[#238636]/20 text-[#3fb950]'
+                      : 'bg-[var(--accent-cyan)]/20 text-[var(--accent-cyan)]'
                       }`}>
                       {summary.project_source === 'github' ? '🔗 GitHub' : '📁 Upload'}
                     </span>

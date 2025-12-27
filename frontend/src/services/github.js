@@ -1,7 +1,9 @@
 // src/services/github.js
 // GitHub OAuth and repository integration
 
-const API_BASE = "http://127.0.0.1:8000/api";
+import { API_BASE_URL } from "../config";
+
+const API_BASE = `${API_BASE_URL}/api`;
 
 // Get or set the GitHub session ID from localStorage
 export function getGitHubSession() {
