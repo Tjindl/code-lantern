@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import OverviewTab from "../components/OverviewTab";
 import ArchitectureTab from "../components/ArchitectureTab";
 import DeepDiveTab from "../components/DeepDiveTab";
 import { API_BASE_URL } from "../config";
+import { DEMO_PROJECT_SUMMARY, DEMO_ANALYSIS_DATA } from "../data/demoData";
 
 export default function ProjectDetailPage() {
+  const { repoId } = useParams();
   const [activeTab, setActiveTab] = useState("overview");
   const [analysisData, setAnalysisData] = useState(null);
   const [summary, setSummary] = useState(null);
@@ -24,22 +26,35 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (hasLoaded.current) return;
+    if (!repoId) return; // Wait for repoId
+
     hasLoaded.current = true;
     loadProjectData();
-  }, []);
+  }, [repoId]);
 
+  // ... inside function
   async function loadProjectData() {
-    console.log('[ProjectDetailPage] Loading project data...');
+    console.log('[ProjectDetailPage] Loading project data for:', repoId);
     setLoading(true);
     setError(null);
 
+    // DEMO MODE CHECK
+    if (repoId === 'demo-project') {
+      setTimeout(() => {
+        setAnalysisData(DEMO_ANALYSIS_DATA);
+        setSummary(DEMO_PROJECT_SUMMARY);
+        setLoading(false);
+      }, 1500); // Fake delay for realism
+      return;
+    }
+
     try {
-      const analyzeRes = await fetch(`${apiBase}/api/analyze`);
+      const analyzeRes = await fetch(`${apiBase}/api/analyze/${repoId}`);
       if (!analyzeRes.ok) throw new Error(`Analysis failed: ${analyzeRes.status}`);
       const analysisResult = await analyzeRes.json();
       setAnalysisData(analysisResult);
 
-      const summaryRes = await fetch(`${apiBase}/api/project-summary`);
+      const summaryRes = await fetch(`${apiBase}/api/project-summary/${repoId}`);
       if (!summaryRes.ok) throw new Error(`Summary failed: ${summaryRes.status}`);
       const summaryData = await summaryRes.json();
       setSummary(summaryData);
@@ -61,7 +76,7 @@ export default function ProjectDetailPage() {
       case "architecture":
         return <ArchitectureTab analysisData={analysisData} loading={loading} />;
       case "deepDive":
-        return <DeepDiveTab analysisData={analysisData} apiBase={apiBase} />;
+        return <DeepDiveTab analysisData={analysisData} apiBase={apiBase} repoId={repoId} />;
       default:
         return null;
     }

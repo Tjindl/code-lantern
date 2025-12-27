@@ -3,6 +3,11 @@ import { uploadProjectZip } from "../services/api";
 import { useNavigate } from "react-router-dom";
 import GitHubConnect from "../components/GitHubConnect";
 import { checkOAuthCallback, getGitHubSession } from "../services/github";
+import ParticleBackground from "../components/ParticleBackground";
+import TiltCard from "../components/TiltCard";
+import TerminalLoader from "../components/TerminalLoader";
+import TypewriterText from "../components/TypewriterText";
+import CountUp from "../components/CountUp";
 
 export default function UploadPage() {
   const fileInputRef = useRef(null);
@@ -36,13 +41,17 @@ export default function UploadPage() {
 
     setUploading(true);
     try {
-      const result = await uploadProjectZip(file);
+      // Simulate at least 2 seconds of loading for the effect
+      const minLoadTime = new Promise(resolve => setTimeout(resolve, 2500));
+      const uploadPromise = uploadProjectZip(file);
+
+      const [result] = await Promise.all([uploadPromise, minLoadTime]);
+
       console.log('[Upload] Success:', result);
-      navigate("/project");
+      navigate(`/project/${result.repo_id}`);
     } catch (error) {
       console.error('[Upload] Error:', error);
       alert(`Upload failed: ${error.message}`);
-    } finally {
       setUploading(false);
     }
   };
@@ -63,7 +72,7 @@ export default function UploadPage() {
 
   const handleGitHubAnalyze = (repoId) => {
     console.log('[GitHub] Repository cloned:', repoId);
-    navigate("/project");
+    navigate(`/project/${repoId}`);
   };
 
   const features = [
@@ -109,25 +118,33 @@ export default function UploadPage() {
   const steps = [
     {
       number: "01",
-      title: "Upload Your Code",
+      title: <><span className="text-gradient">Upload</span> Your Code</>,
       description: "Drop a ZIP file or connect your GitHub repository"
     },
     {
       number: "02",
-      title: "Automatic Analysis",
+      title: <><span className="text-gradient">Automatic</span> Analysis</>,
       description: "AI scans functions, dependencies, and complexity metrics"
     },
     {
       number: "03",
-      title: "Explore Insights",
+      title: <><span className="text-gradient">Explore</span> Insights</>,
       description: "Navigate interactive visualizations and documentation"
     }
   ];
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] bg-grid relative overflow-hidden">
-      {/* Background gradient mesh */}
-      <div className="absolute inset-0 bg-gradient-mesh pointer-events-none" />
+      {/* Dynamic Particle Background */}
+      <ParticleBackground />
+
+      {/* Background gradient mesh overlay for color depth */}
+      <div className="absolute inset-0 bg-gradient-mesh pointer-events-none opacity-40" />
+
+      {/* Animated Floating Orbs */}
+      <div className="absolute top-20 left-10 w-64 h-64 bg-[var(--accent-cyan)] opacity-20 rounded-full blur-[80px] animate-float pointer-events-none" />
+      <div className="absolute bottom-40 right-10 w-96 h-96 bg-[var(--accent-blue)] opacity-20 rounded-full blur-[100px] animate-float pointer-events-none" style={{ animationDelay: '1s' }} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[var(--accent-purple)] opacity-10 rounded-full blur-[120px] animate-pulse-glow pointer-events-none" />
 
       {/* Hero Section */}
       <div className="relative z-10 px-8 pt-16 pb-12">
@@ -143,7 +160,11 @@ export default function UploadPage() {
 
               {/* Tagline */}
               <p className="mt-6 text-xl md:text-2xl font-display">
-                <span className="text-gradient font-semibold">illuminate</span>{" "}
+                <span className="text-gradient font-semibold">
+                  <TypewriterText text="illuminate" delay={150} />
+                </span>
+                <span className="animate-pulse text-[var(--accent-cyan)]">_</span>
+                {" "}
                 <span className="text-white/90">your codebase</span>
               </p>
 
@@ -161,6 +182,15 @@ export default function UploadPage() {
                   Transform complex codebases into beautiful, interactive visualizations.
                   Currently optimized for repositories under 50MB with standard project structures.
                 </p>
+
+                <div className="flex gap-4 pt-4">
+                  <button
+                    onClick={() => navigate('/project/demo-project')}
+                    className="px-6 py-2 rounded-full border border-[var(--accent-cyan)] text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10 transition-colors text-sm font-medium"
+                  >
+                    🚀 Try Demo Project
+                  </button>
+                </div>
               </div>
 
               {/* Feature Pills */}
@@ -182,13 +212,13 @@ export default function UploadPage() {
               </div>
             </div>
 
-            {/* RIGHT: Upload Section */}
-            <div
+            {/* RIGHT: Upload Section (with 3D Tilt) */}
+            <TiltCard
               className="w-full max-w-md animate-fade-in-up"
-              style={{ animationDelay: '0.2s' }}
             >
-              {/* Upload Card */}
-              <div className="glass rounded-2xl p-8 card-glow">
+              <div className="glass rounded-2xl p-8 card-glow h-full relative overflow-hidden">
+                {uploading && <TerminalLoader />}
+
                 {/* Tab Selector */}
                 <div className="flex border-b border-[var(--border-default)] mb-6">
                   <button
@@ -218,14 +248,17 @@ export default function UploadPage() {
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     className={`
-                      border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer
+                      relative group border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer overflow-hidden
                       ${isDragging
-                        ? "border-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10"
-                        : "border-[var(--border-default)] hover:border-[var(--accent-blue)]"
+                        ? "border-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10 scale-[1.02]"
+                        : "border-[var(--border-default)] hover:border-[var(--accent-blue)] hover:bg-white/5"
                       }
                     `}
                     onClick={() => fileInputRef.current?.click()}
                   >
+                    {/* Scanning Line Effect on Drag/Hover */}
+                    <div className={`absolute inset-0 bg-gradient-to-b from-transparent via-[var(--accent-cyan)]/10 to-transparent w-full h-full -translate-y-full transition-transform duration-1000 ${isDragging || uploading ? 'translate-y-full duration-[2s] repeat-infinite' : 'group-hover:translate-y-full'}`} />
+
                     <input
                       type="file"
                       accept=".zip"
@@ -234,20 +267,20 @@ export default function UploadPage() {
                       className="hidden"
                     />
 
-                    <div className="mb-4">
-                      <span className="text-4xl">{uploading ? "⏳" : "📦"}</span>
+                    <div className="mb-4 relative z-10 transition-transform group-hover:scale-110 duration-300">
+                      <span className="text-5xl drop-shadow-lg">{uploading ? "⏳" : "📦"}</span>
                     </div>
 
-                    <p className="font-display text-lg text-white mb-2">
-                      {uploading ? "analyzing..." : "drop your project here"}
+                    <p className="font-display text-lg text-white mb-2 relative z-10">
+                      {uploading ? "analyzing..." : <span className="group-hover:text-[var(--accent-cyan)] transition-colors">drop your project here</span>}
                     </p>
 
-                    <p className="text-sm text-[var(--text-muted)]">
+                    <p className="text-sm text-[var(--text-muted)] relative z-10">
                       or click to browse (.zip files)
                     </p>
 
                     {!uploading && (
-                      <button className="btn-primary mt-6 w-full">
+                      <button className="btn-primary mt-6 w-full relative z-10 opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0">
                         Choose File
                       </button>
                     )}
@@ -258,20 +291,30 @@ export default function UploadPage() {
               </div>
 
               {/* Supported Languages */}
-              <div className="mt-6 text-center">
-                <p className="text-xs text-[var(--text-muted)] mb-3">Supported Languages</p>
-                <div className="flex justify-center gap-3 flex-wrap">
-                  {["Python", "JavaScript", "TypeScript", "Java", "C++", "Rust"].map((lang) => (
-                    <span
-                      key={lang}
-                      className="px-3 py-1 text-xs font-display text-[var(--text-secondary)] bg-[var(--bg-elevated)] rounded-full border border-[var(--border-default)]"
-                    >
-                      {lang}
-                    </span>
-                  ))}
+              {/* Supported Languages - Infinite Marquee */}
+              <div className="mt-8 text-center overflow-hidden w-full max-w-2xl mx-auto mask-linear-fade relative">
+                <p className="text-xs text-[var(--text-muted)] mb-4 uppercase tracking-widest font-semibold">Supported Languages</p>
+
+                <div className="relative flex overflow-hidden group">
+                  <div className="animate-marquee flex gap-4 items-center">
+                    {/* Doubled list for seamless loop */}
+                    {[...["Python", "JavaScript", "TypeScript", "Java", "C++", "Rust", "Go", "Ruby", "PHP", "Swift"],
+                    ...["Python", "JavaScript", "TypeScript", "Java", "C++", "Rust", "Go", "Ruby", "PHP", "Swift"]].map((lang, idx) => (
+                      <span
+                        key={`${lang}-${idx}`}
+                        className="px-4 py-2 text-sm font-display text-[var(--text-secondary)] bg-[var(--bg-elevated)] rounded-full border border-[var(--border-default)] whitespace-nowrap hover:border-[var(--accent-cyan)] hover:text-white transition-colors"
+                      >
+                        {lang}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Fade masks for edges */}
+                  <div className="absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-[var(--bg-primary)] to-transparent z-10"></div>
+                  <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-[var(--bg-primary)] to-transparent z-10"></div>
                 </div>
               </div>
-            </div>
+            </TiltCard>
           </div>
         </div>
       </div>
@@ -280,20 +323,29 @@ export default function UploadPage() {
       <div className="relative z-10 px-8 py-12 border-t border-[var(--border-default)]">
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat, i) => (
-              <div
-                key={stat.label}
-                className="text-center animate-fade-in"
-                style={{ animationDelay: `${0.1 * i}s` }}
-              >
-                <div className="text-3xl md:text-4xl font-display font-bold text-gradient">
-                  {stat.value}
+            {stats.map((stat, i) => {
+              const numeric = parseInt(stat.value.replace(/[^0-9]/g, '')) || 0;
+              const suffix = stat.value.replace(/[0-9]/g, '');
+
+              return (
+                <div
+                  key={stat.label}
+                  className="text-center animate-fade-in"
+                  style={{ animationDelay: `${0.1 * i}s` }}
+                >
+                  <div className="text-3xl md:text-4xl font-display font-bold text-gradient">
+                    {stat.value.match(/\d/) ? (
+                      <CountUp end={numeric} suffix={suffix} />
+                    ) : (
+                      stat.value
+                    )}
+                  </div>
+                  <div className="mt-2 text-sm text-[var(--text-secondary)]">
+                    {stat.label}
+                  </div>
                 </div>
-                <div className="mt-2 text-sm text-[var(--text-secondary)]">
-                  {stat.label}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -415,6 +467,6 @@ export default function UploadPage() {
           </div>
         </div>
       </div>
-    </div>
+    </div >
   );
 }
