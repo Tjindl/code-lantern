@@ -60,9 +60,25 @@ async def upload_repo(file: UploadFile = File(...)):
         except Exception:
             pass
 
+        # Save project metadata including name
+        try:
+            import json
+            project_name = os.path.splitext(file.filename)[0]  # Remove .zip extension
+            metadata = {
+                "project_name": project_name,
+                "source": "upload",
+                "original_filename": file.filename
+            }
+            metadata_path = os.path.join(extract_path, "project_metadata.json")
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f, indent=2)
+        except Exception:
+            pass
+
         return {
             "status": "ok",
             "repo_id": repo_id,
+            "project_name": project_name if 'project_name' in dir() else file.filename,
             "extracted_to": extract_path
         }
     

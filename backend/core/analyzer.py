@@ -12,6 +12,9 @@ import json
 from tree_sitter import Parser
 from tree_sitter_javascript import JAVASCRIPT_LANGUAGE
 from tree_sitter_python import PYTHON_LANGUAGE
+from tree_sitter_java import JAVA_LANGUAGE
+from tree_sitter_cpp import CPP_LANGUAGE
+from tree_sitter_rust import RUST_LANGUAGE
 
 # Set up parser globally
 parser = Parser()
@@ -35,6 +38,12 @@ def detect_language(path: str):
         return "js"
     if ext in [".py"]:
         return "py"
+    if ext in [".java"]:
+        return "java"
+    if ext in [".cpp", ".cc", ".cxx", ".h", ".hpp"]:
+        return "cpp"
+    if ext in [".rs"]:
+        return "rust"
     return None
 
 
@@ -103,6 +112,77 @@ def extract_py_imports(tree, code):
 
 
 # -------------------------------
+# Java Import Extractor
+# -------------------------------
+def extract_java_imports(tree, code):
+    imports = []
+
+    def walk(node):
+        # import package.Class;
+        if node.type == "import_declaration":
+            for child in node.children:
+                if child.type == "scoped_identifier" or child.type == "identifier":
+                    module = code[child.start_byte : child.end_byte]
+                    imports.append(module)
+
+        for c in node.children:
+            walk(c)
+
+    walk(tree.root_node)
+    return imports
+
+
+# -------------------------------
+# C++ Import Extractor
+# -------------------------------
+def extract_cpp_imports(tree, code):
+    imports = []
+
+    def walk(node):
+        # #include <...> or #include "..."
+        if node.type == "preproc_include":
+            for child in node.children:
+                if child.type == "string_literal" or child.type == "system_lib_string":
+                    # Extract the header name
+                    header = code[child.start_byte : child.end_byte]
+                    # Remove quotes or angle brackets
+                    header = header.strip('"<>')
+                    imports.append(header)
+
+        for c in node.children:
+            walk(c)
+
+    walk(tree.root_node)
+    return imports
+
+
+# -------------------------------
+# Rust Import Extractor
+# -------------------------------
+def extract_rust_imports(tree, code):
+    imports = []
+
+    def walk(node):
+        # use module::path;
+        if node.type == "use_declaration":
+            for child in node.children:
+                if child.type == "scoped_identifier" or child.type == "identifier":
+                    module = code[child.start_byte : child.end_byte]
+                    imports.append(module)
+                elif child.type == "use_list":
+                    # Handle use module::{A, B};
+                    module_text = code[child.start_byte : child.end_byte]
+                    imports.append(module_text)
+
+        for c in node.children:
+            walk(c)
+
+    walk(tree.root_node)
+    return imports
+
+
+
+# -------------------------------
 # Function Extractor (JS + Python)
 # -------------------------------
 def extract_functions(tree, code):
@@ -118,6 +198,30 @@ def extract_functions(tree, code):
 
         # Python: function_definition
         if node.type == "function_definition":
+            for child in node.children:
+                if child.type == "identifier":
+                    fn = code[child.start_byte:child.end_byte]
+                    functions.append(fn)
+
+        # Java: method_declaration
+        if node.type == "method_declaration":
+            for child in node.children:
+                if child.type == "identifier":
+                    fn = code[child.start_byte:child.end_byte]
+                    functions.append(fn)
+
+        # C++: function_definition
+        if node.type == "function_definition":
+            # Look for function_declarator
+            for child in node.children:
+                if child.type == "function_declarator":
+                    for subchild in child.children:
+                        if subchild.type == "identifier":
+                            fn = code[subchild.start_byte:subchild.end_byte]
+                            functions.append(fn)
+
+        # Rust: function_item
+        if node.type == "function_item":
             for child in node.children:
                 if child.type == "identifier":
                     fn = code[child.start_byte:child.end_byte]
@@ -147,14 +251,28 @@ def analyze_file(path: str):
         parser.set_language(JAVASCRIPT_LANGUAGE)
     elif lang == "py":
         parser.set_language(PYTHON_LANGUAGE)
+    elif lang == "java":
+        parser.set_language(JAVA_LANGUAGE)
+    elif lang == "cpp":
+        parser.set_language(CPP_LANGUAGE)
+    elif lang == "rust":
+        parser.set_language(RUST_LANGUAGE)
 
     tree = parser.parse(bytes(code, "utf-8"))
 
     # Extract imports
     if lang == "js":
         imports = extract_js_imports(tree, code)
-    else:
+    elif lang == "py":
         imports = extract_py_imports(tree, code)
+    elif lang == "java":
+        imports = extract_java_imports(tree, code)
+    elif lang == "cpp":
+        imports = extract_cpp_imports(tree, code)
+    elif lang == "rust":
+        imports = extract_rust_imports(tree, code)
+    else:
+        imports = []
 
     # Extract functions
     functions = extract_functions(tree, code)
@@ -171,7 +289,7 @@ def analyze_file(path: str):
 # -------------------------------
 def analyze_repo(repo_path: str):
     results = {}
-    valid_exts = [".js", ".jsx", ".ts", ".tsx", ".py"]
+    valid_exts = [".js", ".jsx", ".ts", ".tsx", ".py", ".java", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".rs"]
 
     # Discover files
     file_paths = []

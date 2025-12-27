@@ -2,18 +2,33 @@
 import os
 import json
 import re
+import httpx
 from typing import List, Dict, Any
-from fastapi import APIRouter, HTTPException
-import google.generativeai as genai
+from fastapi import APIRouter, HTTPException, Request
 from dotenv import load_dotenv
 
 load_dotenv()
 
 router = APIRouter()
 
-# Configure Gemini API
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel('models/gemini-2.0-flash')
+# Import new LLM provider and rate limiter
+from services.llm_provider import generate_with_fallback, parse_json_from_response
+from services.rate_limiter import rate_limiter
+
+# Configure AI - Use Groq (fast!) or fall back to Gemini
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+# Groq model to use (very fast)
+GROQ_MODEL = "llama-3.1-8b-instant"
+
+# Only import Gemini if no Groq key
+if not GROQ_API_KEY and GEMINI_API_KEY:
+    import google.generativeai as genai
+    genai.configure(api_key=GEMINI_API_KEY)
+    gemini_model = genai.GenerativeModel('models/gemini-2.0-flash')
+else:
+    gemini_model = None
 
 # Supported file extensions for analysis
 SUPPORTED_EXTENSIONS = {
@@ -21,7 +36,46 @@ SUPPORTED_EXTENSIONS = {
     '.js': 'javascript', 
     '.ts': 'typescript',
     '.tsx': 'typescript',
-    '.jsx': 'javascript'
+    '.jsx': 'javascript',
+    '.java': 'java',
+    '.cpp': 'cpp',
+    '.cc': 'cpp',
+    '.cxx': 'cpp',
+    '.h': 'cpp',
+    '.hpp': 'cpp',
+    '.rs': 'rust'
+}
+
+# Directories to ignore during analysis
+IGNORED_DIRECTORIES = {
+
+    # Version control
+    '.git', '.svn', '.hg',
+    
+    # JavaScript/Node
+    'node_modules', 'bower_components', '.npm', '.yarn',
+    
+    # Python
+    'venv', '.venv', 'env', '.env', 'virtualenv',
+    '__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache',
+    'site-packages', '.eggs', '*.egg-info',
+    
+    # Build outputs
+    'dist', 'build', 'out', 'output', 'target', 'bin', 'obj',
+    '.next', '.nuxt', '.output', '.cache', '.parcel-cache',
+    
+    # IDE/Editor
+    '.vscode', '.idea', '.vs', '.eclipse',
+    
+    # Dependencies/Libraries
+    'vendor', 'packages', 'libs', 'lib', 'third_party', 'external',
+    
+    # Testing
+    'coverage', '.coverage', 'htmlcov', '.tox',
+    
+    # Misc
+    '.git', 'tmp', 'temp', 'logs', '.DS_Store',
+    'assets', 'static', 'public', 'media', 'uploads',
 }
 
 def find_source_files(repo_path: str) -> List[str]:
@@ -29,10 +83,13 @@ def find_source_files(repo_path: str) -> List[str]:
     source_files = []
     
     for root, dirs, files in os.walk(repo_path):
-        # Skip common ignore directories
-        dirs[:] = [d for d in dirs if d not in ['.git', 'node_modules', '__pycache__', '.vscode', 'dist', 'build']]
+        # Skip ignored directories (modifies dirs in-place to prevent descending)
+        dirs[:] = [d for d in dirs if d not in IGNORED_DIRECTORIES and not d.startswith('.')]
         
         for file in files:
+            # Skip hidden files and common non-source files
+            if file.startswith('.'):
+                continue
             if any(file.endswith(ext) for ext in SUPPORTED_EXTENSIONS.keys()):
                 file_path = os.path.join(root, file)
                 # Make path relative to repo root for consistent project-relative paths
@@ -41,30 +98,71 @@ def find_source_files(repo_path: str) -> List[str]:
     
     return source_files
 
+
+def calculate_cyclomatic_complexity(code: str) -> int:
+    """Calculate cyclomatic complexity based on control flow statements"""
+    complexity = 1  # Base complexity
+    
+    # Control flow patterns that increase complexity
+    patterns = [
+        r'\bif\b', r'\belif\b', r'\bfor\b', r'\bwhile\b',
+        r'\band\b', r'\bor\b', r'\btry\b', r'\bexcept\b',
+        r'\bcase\b', r'\?\s*:', r'\bcatch\b', r'\bswitch\b',
+        r'\?\?', r'\|\|', r'&&'
+    ]
+    
+    for pattern in patterns:
+        complexity += len(re.findall(pattern, code))
+    
+    return complexity
+
+
 def extract_functions_python(file_content: str, file_path: str) -> List[Dict[str, Any]]:
     """Extract function definitions and calls from Python files"""
     functions = []
+    lines = file_content.split('\n')
     
-    # Find function definitions
-    function_pattern = r'^def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\('
-    for match in re.finditer(function_pattern, file_content, re.MULTILINE):
-        func_name = match.group(1)
-        unique_name = f"{file_path}-{func_name}"
-        
-        # Find function calls in the file (basic pattern)
-        call_pattern = r'([a-zA-Z_][a-zA-Z0-9_]*)\s*\('
-        calls = []
-        for call_match in re.finditer(call_pattern, file_content):
-            called_func = call_match.group(1)
-            if called_func != func_name and not called_func in ['print', 'len', 'str', 'int', 'list', 'dict']:
-                calls.append(called_func)
-        
-        functions.append({
-            "functionName": unique_name,
-            "calls": list(set(calls))  # Remove duplicates
-        })
+    # Find function definitions with their bodies
+    function_pattern = r'^def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)\s*(?:->\s*[^:]+)?:'
+    
+    for i, line in enumerate(lines):
+        match = re.match(function_pattern, line)
+        if match:
+            func_name = match.group(1)
+            unique_name = f"{file_path}-{func_name}"
+            
+            # Get function body (simple heuristic: lines until next def or class at same indent)
+            func_body_lines = [line]
+            indent = len(line) - len(line.lstrip())
+            for j in range(i + 1, min(i + 200, len(lines))):  # max 200 lines
+                next_line = lines[j]
+                if next_line.strip() and not next_line.startswith(' ' * (indent + 1)) and not next_line.startswith('\t'):
+                    if re.match(r'^(def|class)\s+', next_line.lstrip()):
+                        break
+                func_body_lines.append(next_line)
+            
+            func_body = '\n'.join(func_body_lines)
+            
+            # Calculate complexity
+            complexity = calculate_cyclomatic_complexity(func_body)
+            
+            # Find function calls
+            call_pattern = r'([a-zA-Z_][a-zA-Z0-9_]*)\s*\('
+            calls = []
+            for call_match in re.finditer(call_pattern, func_body):
+                called_func = call_match.group(1)
+                if called_func != func_name and called_func not in ['print', 'len', 'str', 'int', 'list', 'dict', 'range', 'open', 'type']:
+                    calls.append(called_func)
+            
+            functions.append({
+                "functionName": unique_name,
+                "calls": list(set(calls)),
+                "complexity": complexity,
+                "lines": len(func_body_lines)
+            })
     
     return functions
+
 
 def extract_functions_javascript(file_content: str, file_path: str) -> List[Dict[str, Any]]:
     """Extract function definitions and calls from JavaScript/TypeScript files"""
@@ -78,17 +176,55 @@ def extract_functions_javascript(file_content: str, file_path: str) -> List[Dict
         r'([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)\s*=>', # arrow functions
     ]
     
+    seen_functions = set()
+    
     for pattern in patterns:
         for match in re.finditer(pattern, file_content, re.MULTILINE):
             func_name = match.group(1)
+            if func_name in seen_functions:
+                continue
+            seen_functions.add(func_name)
+            
             unique_name = f"{file_path}-{func_name}"
+            
+            # Calculate complexity for the whole file (simplified)
+            complexity = calculate_cyclomatic_complexity(file_content) // max(1, len(seen_functions))
             
             # Find function calls
             call_pattern = r'([a-zA-Z_][a-zA-Z0-9_]*)\s*\('
             calls = []
             for call_match in re.finditer(call_pattern, file_content):
                 called_func = call_match.group(1)
-                if called_func != func_name and not called_func in ['console', 'require', 'import', 'export']:
+                if called_func != func_name and called_func not in ['console', 'require', 'import', 'export', 'if', 'for', 'while', 'switch']:
+                    calls.append(called_func)
+            
+            functions.append({
+                "functionName": unique_name,
+                "calls": list(set(calls)),
+                "complexity": max(1, complexity)
+            })
+    
+    return functions
+
+
+def extract_functions_java(file_content: str, file_path: str) -> List[Dict[str, Any]]:
+    """Extract method definitions and calls from Java files"""
+    functions = []
+    
+    # Find method definitions (public/private/protected methods)
+    method_pattern = r'(public|private|protected|static)?\s*(static)?\s*[\w\<\>\[\]]+\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\('
+    for match in re.finditer(method_pattern, file_content, re.MULTILINE):
+        func_name = match.group(3)
+        # Skip common keywords
+        if func_name not in ['class', 'interface', 'enum', 'if', 'while', 'for', 'switch']:
+            unique_name = f"{file_path}-{func_name}"
+            
+            # Find method calls
+            call_pattern = r'([a-zA-Z_][a-zA-Z0-9_]*)\s*\('
+            calls = []
+            for call_match in re.finditer(call_pattern, file_content):
+                called_func = call_match.group(1)
+                if called_func != func_name and not called_func in ['System', 'println', 'print', 'new']:
                     calls.append(called_func)
             
             functions.append({
@@ -98,31 +234,114 @@ def extract_functions_javascript(file_content: str, file_path: str) -> List[Dict
     
     return functions
 
+def extract_functions_cpp(file_content: str, file_path: str) -> List[Dict[str, Any]]:
+    """Extract function definitions and calls from C++ files"""
+    functions = []
+    
+    # Find function definitions
+    function_pattern = r'[\w:]+\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)\s*\{'
+    for match in re.finditer(function_pattern, file_content, re.MULTILINE):
+        func_name = match.group(1)
+        # Skip common keywords
+        if func_name not in ['if', 'while', 'for', 'switch', 'catch']:
+            unique_name = f"{file_path}-{func_name}"
+            
+            # Find function calls
+            call_pattern = r'([a-zA-Z_][a-zA-Z0-9_]*)\s*\('
+            calls = []
+            for call_match in re.finditer(call_pattern, file_content):
+                called_func = call_match.group(1)
+                if called_func != func_name and not called_func in ['std', 'cout', 'cin', 'printf', 'sizeof']:
+                    calls.append(called_func)
+            
+            functions.append({
+                "functionName": unique_name,
+                "calls": list(set(calls))
+            })
+    
+    return functions
+
+def extract_functions_rust(file_content: str, file_path: str) -> List[Dict[str, Any]]:
+    """Extract function definitions and calls from Rust files"""
+    functions = []
+    
+    # Find function definitions (fn keyword)
+    function_pattern = r'fn\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\('
+    for match in re.finditer(function_pattern, file_content, re.MULTILINE):
+        func_name = match.group(1)
+        unique_name = f"{file_path}-{func_name}"
+        
+        # Find function calls
+        call_pattern = r'([a-zA-Z_][a-zA-Z0-9_]*)\s*\('
+        calls = []
+        for call_match in re.finditer(call_pattern, file_content):
+            called_func = call_match.group(1)
+            if called_func != func_name and not called_func in ['println', 'print', 'vec', 'Some', 'None', 'Ok', 'Err']:
+                calls.append(called_func)
+        
+        functions.append({
+            "functionName": unique_name,
+            "calls": list(set(calls))
+        })
+    
+    return functions
+
 def extract_function_code(file_content: str, function_name: str, file_type: str) -> str:
     """Extract the actual code of a specific function"""
+    print(f"[DEBUG] extract_function_code: Looking for '{function_name}' in {file_type} file")
+    
     if file_type == 'python':
-        # Find function definition and its body - more flexible pattern
-        pattern = rf'def\s+{re.escape(function_name)}\s*\([^)]*\):'
+        # Find function definition and its body - handles async, decorators, multiline
+        patterns = [
+            rf'def\s+{re.escape(function_name)}\s*\([^)]*\)\s*(?:->\s*[^:]+)?:',  # def func(args) -> type:
+            rf'def\s+{re.escape(function_name)}\s*\(',  # Just def func(
+            rf'async\s+def\s+{re.escape(function_name)}\s*\(',  # async def func(
+        ]
+        
         lines = file_content.split('\n')
         
+        for pattern in patterns:
+            for i, line in enumerate(lines):
+                if re.search(pattern, line):
+                    print(f"[DEBUG] Found function at line {i}: {line[:60]}...")
+                    # Found function start, now find the end
+                    indent_level = len(line) - len(line.lstrip())
+                    function_lines = [line]
+                    
+                    for j in range(i + 1, min(i + 300, len(lines))):  # max 300 lines
+                        if lines[j].strip() == '':  # Empty line
+                            function_lines.append(lines[j])
+                            continue
+                        
+                        current_indent = len(lines[j]) - len(lines[j].lstrip())
+                        if current_indent <= indent_level and lines[j].strip():
+                            break  # Function ended
+                        
+                        function_lines.append(lines[j])
+                    
+                    return '\n'.join(function_lines)
+        
+        # Fallback: simple search for function name
+        print(f"[DEBUG] Pattern search failed, trying simple search")
         for i, line in enumerate(lines):
-            if re.search(pattern, line):
-                # Found function start, now find the end
-                indent_level = len(line) - len(line.lstrip())
+            if f'def {function_name}' in line or f'def  {function_name}' in line:
+                print(f"[DEBUG] Found via simple search at line {i}")
                 function_lines = [line]
+                indent_level = len(line) - len(line.lstrip())
                 
-                for j in range(i + 1, len(lines)):
-                    if lines[j].strip() == '':  # Empty line
+                for j in range(i + 1, min(i + 100, len(lines))):
+                    if lines[j].strip() == '':
                         function_lines.append(lines[j])
                         continue
-                    
                     current_indent = len(lines[j]) - len(lines[j].lstrip())
                     if current_indent <= indent_level and lines[j].strip():
-                        break  # Function ended
-                    
+                        break
                     function_lines.append(lines[j])
                 
                 return '\n'.join(function_lines)
+        
+        print(f"[DEBUG] Function '{function_name}' not found in Python file")
+
     
     elif file_type in ['javascript', 'typescript']:
         # JavaScript/TypeScript function extraction - simplified and more robust
@@ -168,21 +387,81 @@ def extract_function_code(file_content: str, function_name: str, file_type: str)
                             return file_content[line_start:pos+1]
                     pos += 1
     
+    elif file_type == 'java':
+        # Java method extraction
+        method_pattern = rf'(public|private|protected|static)?\s*(static)?\s*[\w\<\>\[\]]+\s+{re.escape(function_name)}\s*\('
+        match = re.search(method_pattern, file_content, re.MULTILINE)
+        if match:
+            start_pos = match.start()
+            line_start = file_content.rfind('\n', 0, start_pos) + 1
+            
+            # Find the opening brace
+            brace_pos = file_content.find('{', match.end())
+            if brace_pos != -1:
+                # Find matching closing brace
+                brace_count = 0
+                pos = brace_pos
+                while pos < len(file_content):
+                    if file_content[pos] == '{':
+                        brace_count += 1
+                    elif file_content[pos] == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            return file_content[line_start:pos+1]
+                    pos += 1
+    
+    elif file_type == 'cpp':
+        # C++ function extraction
+        function_pattern = rf'[\w:]+\s+{re.escape(function_name)}\s*\([^)]*\)\s*\{{'
+        match = re.search(function_pattern, file_content, re.MULTILINE)
+        if match:
+            start_pos = match.start()
+            line_start = file_content.rfind('\n', 0, start_pos) + 1
+            
+            # Find the opening brace
+            brace_pos = file_content.find('{', match.start())
+            if brace_pos != -1:
+                # Find matching closing brace
+                brace_count = 0
+                pos = brace_pos
+                while pos < len(file_content):
+                    if file_content[pos] == '{':
+                        brace_count += 1
+                    elif file_content[pos] == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            return file_content[line_start:pos+1]
+                    pos += 1
+    
+    elif file_type == 'rust':
+        # Rust function extraction
+        function_pattern = rf'fn\s+{re.escape(function_name)}\s*\('
+        match = re.search(function_pattern, file_content, re.MULTILINE)
+        if match:
+            start_pos = match.start()
+            line_start = file_content.rfind('\n', 0, start_pos) + 1
+            
+            # Find the opening brace
+            brace_pos = file_content.find('{', match.end())
+            if brace_pos != -1:
+                # Find matching closing brace
+                brace_count = 0
+                pos = brace_pos
+                while pos < len(file_content):
+                    if file_content[pos] == '{':
+                        brace_count += 1
+                    elif file_content[pos] == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            return file_content[line_start:pos+1]
+                    pos += 1
+    
     return ""
 
 async def generate_function_description(function_code: str, function_name: str, file_path: str) -> Dict[str, str]:
-    """Generate function description using Gemini API"""
-    if not os.getenv("GEMINI_API_KEY"):
-        return {
-            "function_name": function_name,
-            "inputs": "API key not configured",
-            "outputs": "API key not configured", 
-            "description": "Gemini API key not configured. Please add GEMINI_API_KEY to your .env file."
-        }
+    """Generate function description using multi-LLM provider with automatic fallback"""
     
-    try:
-        prompt = f"""
-Analyze this function and provide a structured description:
+    prompt = f"""Analyze this function and provide a structured description:
 
 File: {file_path}
 Function Code:
@@ -202,38 +481,34 @@ Format your response as JSON:
     "inputs": "description of inputs/parameters",
     "outputs": "description of return value",
     "description": "clear description of what the function does"
-}}
-"""
-        
-        response = model.generate_content(prompt)
-        
-        # Try to parse JSON from response
-        response_text = response.text
-        
-        # Extract JSON from response (in case there's extra text)
-        json_start = response_text.find('{')
-        json_end = response_text.rfind('}') + 1
-        
-        if json_start >= 0 and json_end > json_start:
-            json_text = response_text[json_start:json_end]
-            return json.loads(json_text)
-        else:
-            # Fallback if JSON parsing fails
-            return {
-                "function_name": function_name,
-                "inputs": "Could not parse",
-                "outputs": "Could not parse",
-                "description": response_text[:200] + "..." if len(response_text) > 200 else response_text
-            }
-            
-    except Exception as e:
-        # Fallback to basic analysis if Gemini fails
+}}"""
+
+    # Use the new multi-LLM provider with automatic fallback
+    result = await generate_with_fallback(prompt, max_tokens=500)
+    
+    if result["error"]:
+        print(f"[AI] All providers failed: {result['error']}")
         return {
             "function_name": function_name,
-            "inputs": "Basic analysis: Function parameters extracted from code",
-            "outputs": "Basic analysis: Return value analysis from code",
-            "description": f"Function '{function_name}' in file '{file_path}'. Gemini API error: {str(e)[:100]}. Basic code analysis available."
+            "inputs": "Analysis: Check function parameters in code",
+            "outputs": "Analysis: Check return statements in code",
+            "description": f"Function '{function_name}' in '{file_path}'. AI analysis unavailable."
         }
+    
+    # Parse JSON from response
+    parsed = parse_json_from_response(result["text"])
+    if parsed:
+        parsed["_provider"] = result["provider"]  # Include which provider was used
+        return parsed
+    
+    # Fallback if JSON parsing fails
+    return {
+        "function_name": function_name,
+        "inputs": "Analysis: Check function parameters in code",
+        "outputs": "Analysis: Check return statements in code",
+        "description": f"Function '{function_name}' in '{file_path}'. AI response could not be parsed."
+    }
+
 
 def analyze_file(file_path: str, repo_path: str) -> Dict[str, Any]:
     """Analyze a single file and extract function information"""
@@ -252,6 +527,12 @@ def analyze_file(file_path: str, repo_path: str) -> Dict[str, Any]:
         functions = extract_functions_python(content, file_path)
     elif file_ext in ['.js', '.ts', '.tsx', '.jsx']:
         functions = extract_functions_javascript(content, file_path)
+    elif file_ext == '.java':
+        functions = extract_functions_java(content, file_path)
+    elif file_ext in ['.cpp', '.cc', '.cxx', '.h', '.hpp']:
+        functions = extract_functions_cpp(content, file_path)
+    elif file_ext == '.rs':
+        functions = extract_functions_rust(content, file_path)
     else:
         functions = []
     
@@ -334,17 +615,83 @@ async def get_project_files(repo_id: str):
     }
 
 @router.get("/function/{repo_id}")
-async def get_function_details(repo_id: str, file_path: str, function_name: str):
-    """Get detailed description of a specific function using Gemini API"""
+async def get_function_details(repo_id: str, file_path: str, function_name: str, request: Request):
+    """Get detailed description of a specific function with rate limiting"""
+    
+    # Get client IP for rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+    
+    # Check cache first (doesn't count against rate limit)
+    cached = rate_limiter.get_cached_function(repo_id, file_path, function_name)
+    if cached:
+        print(f"[Rate Limiter] Cache hit for {function_name}")
+        return {
+            "status": "ok",
+            "repo_id": repo_id,
+            "file_path": file_path,
+            "details": cached,
+            "cached": True
+        }
+    
+    # Check rate limit
+    allowed, current, max_allowed = rate_limiter.check_function_detail_limit(client_ip, repo_id)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "message": f"Rate limit reached. You can analyze up to {max_allowed} functions per project.",
+                "current_usage": current,
+                "max_allowed": max_allowed,
+                "tip": "Upload a new project to reset your limit, or try again later."
+            }
+        )
+    
     repo_path = os.path.join("processed_repos", repo_id)
     
-    if not os.path.exists(repo_path):
-        raise HTTPException(status_code=404, detail="Repository not found")
+    print(f"[DEBUG] get_function_details called:")
+    print(f"  repo_id: {repo_id}")
+    print(f"  file_path: {file_path}")
+    print(f"  function_name: {function_name}")
+    print(f"  client_ip: {client_ip}")
+    print(f"  usage: {current + 1}/{max_allowed}")
     
-    # Read the actual file to get function code
-    full_file_path = os.path.join(repo_path, file_path)
-    if not os.path.exists(full_file_path):
-        raise HTTPException(status_code=404, detail="File not found")
+    if not os.path.exists(repo_path):
+        raise HTTPException(status_code=404, detail=f"Repository not found: {repo_id}")
+    
+    # Try multiple path variations to find the file
+    full_file_path = None
+    paths_tried = []
+    
+    # Variation 1: Direct path
+    direct_path = os.path.join(repo_path, file_path)
+    paths_tried.append(direct_path)
+    if os.path.exists(direct_path):
+        full_file_path = direct_path
+    
+    # Variation 2: Try without leading directory (common with cloned repos)
+    if not full_file_path and '/' in file_path:
+        parts = file_path.split('/')
+        for i in range(len(parts)):
+            partial_path = '/'.join(parts[i:])
+            test_path = os.path.join(repo_path, partial_path)
+            paths_tried.append(test_path)
+            if os.path.exists(test_path):
+                full_file_path = test_path
+                break
+    
+    # Variation 3: Search recursively for the filename
+    if not full_file_path:
+        filename = os.path.basename(file_path)
+        for root, dirs, files in os.walk(repo_path):
+            if filename in files:
+                full_file_path = os.path.join(root, filename)
+                break
+    
+    if not full_file_path:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"File not found: {file_path}. Tried: {paths_tried[:3]}"
+        )
     
     try:
         with open(full_file_path, 'r', encoding='utf-8') as f:
@@ -358,6 +705,12 @@ async def get_function_details(repo_id: str, file_path: str, function_name: str)
         file_type = 'python'
     elif file_ext in ['.js', '.ts', '.tsx', '.jsx']:
         file_type = 'javascript'
+    elif file_ext == '.java':
+        file_type = 'java'
+    elif file_ext in ['.cpp', '.cc', '.cxx', '.h', '.hpp']:
+        file_type = 'cpp'
+    elif file_ext == '.rs':
+        file_type = 'rust'
     else:
         raise HTTPException(status_code=400, detail="Unsupported file type")
     
@@ -367,23 +720,38 @@ async def get_function_details(repo_id: str, file_path: str, function_name: str)
     if not function_code:
         raise HTTPException(status_code=404, detail="Function not found in file")
     
-    # Generate description using Gemini
+    # Record usage BEFORE making AI call
+    rate_limiter.record_function_detail(client_ip, repo_id)
+    
+    # Generate description using AI
     function_description = await generate_function_description(function_code, function_name, file_path)
+    
+    # Cache the result
+    rate_limiter.cache_function(repo_id, file_path, function_name, function_description)
+    
+    # Get updated usage
+    used, max_limit = rate_limiter.get_function_detail_usage(client_ip, repo_id)
     
     return {
         "status": "ok",
         "repo_id": repo_id,
         "file_path": file_path,
-        "details": function_description
+        "details": function_description,
+        "cached": False,
+        "rate_limit": {
+            "used": used,
+            "max": max_limit,
+            "remaining": max_limit - used
+        }
     }
 
 @router.get("/function")
-async def get_function_details_latest(file_path: str, function_name: str):
+async def get_function_details_latest(file_path: str, function_name: str, request: Request):
     """Get function details for the latest uploaded repo"""
     repo_id = get_latest_repo_id()
     if not repo_id:
         raise HTTPException(status_code=404, detail="No repo uploaded yet")
-    return await get_function_details(repo_id, file_path, function_name)
+    return await get_function_details(repo_id, file_path, function_name, request)
 
 @router.get("/project-summary/{repo_id}")
 async def get_project_summary(repo_id: str):
@@ -392,6 +760,19 @@ async def get_project_summary(repo_id: str):
     
     if not os.path.exists(repo_path):
         raise HTTPException(status_code=404, detail="Repository not found")
+    
+    # Read project metadata if it exists
+    project_name = repo_id  # Default to repo_id
+    project_source = "unknown"
+    metadata_path = os.path.join(repo_path, "project_metadata.json")
+    if os.path.exists(metadata_path):
+        try:
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+                project_name = metadata.get("project_name", repo_id)
+                project_source = metadata.get("source", "unknown")
+        except Exception:
+            pass
     
     # Read the architecture map
     json_path = os.path.join(repo_path, "architecture_map.json")
@@ -410,6 +791,8 @@ async def get_project_summary(repo_id: str):
     return {
         "status": "ok",
         "repo_id": repo_id,
+        "project_name": project_name,
+        "project_source": project_source,
         "project_stats": project_stats,
         "ai_summary": ai_summary,
         "generated_at": get_current_timestamp()
@@ -580,33 +963,14 @@ def categorize_architecture_complexity(avg_complexity: float) -> str:
         return "Highly Complex"
 
 async def generate_project_ai_summary(project_stats: dict, architecture_map: dict) -> dict:
-    """Generate an AI-powered summary. Falls back to static summary if AI unavailable."""
-    # Static fallback if AI is not configured
-    if model is None or not os.getenv("GEMINI_API_KEY"):
-        print("[AI] No model or API key - returning static summary")
-        fs = project_stats.get('file_stats', {})
-        fns = project_stats.get('function_stats', {})
-        lang = project_stats.get('language_stats', {})
-        cmx = project_stats.get('complexity_metrics', {})
-        return {
-            "source": "static",
-            "overview": f"Project with {fs.get('total_files', 0)} files and {fns.get('total_functions', 0)} functions. Primary language: {lang.get('primary_language', 'Unknown')}.",
-            "strengths": ["Architecture map generated", "Complexity metrics computed", "Language mix detected"],
-            "recommendations": ["Document complex areas", "Add tests", "Adopt linting"],
-            "architecture_insights": f"Avg complexity {fns.get('average_complexity', 0)}; health {cmx.get('code_health_score', 0)}/100",
-            "technology_assessment": f"Primary language: {lang.get('primary_language', 'Unknown')}"
-        }
-    try:
-        print(f"[AI] Generating project summary via {model}")
-        
-        # Build the prompt
-        fs = project_stats.get('file_stats', {})
-        fns = project_stats.get('function_stats', {})
-        lang = project_stats.get('language_stats', {})
-        cmx = project_stats.get('complexity_metrics', {})
-        
-        prompt = f"""
-You are a senior software architect reviewing a codebase. Analyze this project and provide insights in JSON format.
+    """Generate an AI-powered summary using multi-LLM provider with automatic fallback."""
+    
+    fs = project_stats.get('file_stats', {})
+    fns = project_stats.get('function_stats', {})
+    lang = project_stats.get('language_stats', {})
+    cmx = project_stats.get('complexity_metrics', {})
+    
+    prompt = f"""You are a senior software architect reviewing a codebase. Analyze this project and provide insights in JSON format.
 
 Project Statistics:
 - Total Files: {fs.get('total_files', 0)}
@@ -625,37 +989,38 @@ Provide a comprehensive analysis in this exact JSON format:
     "recommendations": ["recommendation 1", "recommendation 2", "recommendation 3"],
     "architecture_insights": "Brief analysis of the architecture patterns and design",
     "technology_assessment": "Analysis of the technology stack and language choices"
-}}
-"""
-        
-        resp = model.generate_content(prompt)
-        text = getattr(resp, 'text', '') or ''
-        i, j = text.find('{'), text.rfind('}')
-        if i >= 0 and j > i:
-            data = json.loads(text[i:j+1])
-            data["source"] = "ai"
-            return data
-        return {
-            "source": "ai",
-            "overview": text[:200] + ("..." if len(text) > 200 else ""),
-            "strengths": ["AI summary generated"],
-            "recommendations": ["Refine prompt or enable structured output"],
-            "architecture_insights": "Parsing failed; showing raw excerpt",
-            "technology_assessment": "N/A"
-        }
-    except Exception as e:
-        print(f"[AI] Project summary error: {e}")
-        fs = project_stats.get('file_stats', {})
-        fns = project_stats.get('function_stats', {})
-        cmx = project_stats.get('complexity_metrics', {})
+}}"""
+
+    # Use the new multi-LLM provider with automatic fallback
+    result = await generate_with_fallback(prompt, max_tokens=800)
+    
+    if result["error"]:
+        print(f"[AI] All providers failed: {result['error']}")
         return {
             "source": "static",
-            "overview": f"Static: {fs.get('total_files', 0)} files, {fns.get('total_functions', 0)} functions.",
-            "strengths": ["Stable analysis pipeline"],
-            "recommendations": ["Enable AI key for richer insights"],
-            "architecture_insights": f"Health score {cmx.get('code_health_score', 0)}/100",
-            "technology_assessment": "N/A"
+            "overview": f"Project with {fs.get('total_files', 0)} files and {fns.get('total_functions', 0)} functions. Primary language: {lang.get('primary_language', 'Unknown')}.",
+            "strengths": ["Architecture map generated", "Complexity metrics computed", "Multi-language support"],
+            "recommendations": ["Document complex areas", "Add unit tests", "Consider code linting"],
+            "architecture_insights": f"Average complexity: {fns.get('average_complexity', 0)}. Health score: {cmx.get('code_health_score', 0)}/100",
+            "technology_assessment": f"Primary language: {lang.get('primary_language', 'Unknown')}. Project size: {cmx.get('project_size', 'Unknown')}"
         }
+    
+    # Parse JSON from response
+    parsed = parse_json_from_response(result["text"])
+    if parsed:
+        parsed["source"] = result["provider"]
+        return parsed
+    
+    # Fallback if JSON parsing fails
+    return {
+        "source": "static",
+        "overview": f"Project with {fs.get('total_files', 0)} files and {fns.get('total_functions', 0)} functions. Primary language: {lang.get('primary_language', 'Unknown')}.",
+        "strengths": ["Architecture map generated", "Complexity metrics computed", "Multi-language support"],
+        "recommendations": ["Document complex areas", "Add unit tests", "Consider code linting"],
+        "architecture_insights": f"Average complexity: {fns.get('average_complexity', 0)}. Health score: {cmx.get('code_health_score', 0)}/100",
+        "technology_assessment": f"Primary language: {lang.get('primary_language', 'Unknown')}. Project size: {cmx.get('project_size', 'Unknown')}"
+    }
+
 
 def get_current_timestamp():
     """Get current timestamp"""
@@ -690,12 +1055,3 @@ async def project_summary_latest():
     if not repo_id:
         raise HTTPException(status_code=404, detail="No repo uploaded yet")
     return await get_project_summary(repo_id)
-
-
-@router.get("/function")
-async def get_function_details_latest(file_path: str, function_name: str):
-    """Get function details for the latest uploaded repo"""
-    repo_id = get_latest_repo_id()
-    if not repo_id:
-        raise HTTPException(status_code=404, detail="No repo uploaded yet")
-    return await get_function_details(repo_id, file_path, function_name)
