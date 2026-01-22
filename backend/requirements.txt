@@ -1,6 +1,7 @@
 # --- Web Framework ---
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
+gunicorn>=21.2.0
 python-multipart==0.0.6
 fastapi-cors==0.0.6
 
@@ -14,6 +15,11 @@ aiofiles>=23.2.1
 python-dotenv==1.0.0
 rich>=13.7.0
 
-# --- Code Parsing ---
-# We are currently using regex/AST in standard lib, but keeping tree-sitter if you plan to switch back
-# tree_sitter
+# --- Code Parsing (Tree-sitter for accurate AST analysis) ---
+tree-sitter>=0.21.0
+tree-sitter-python>=0.21.0
+tree-sitter-javascript>=0.21.0
+tree-sitter-java>=0.21.0
+tree-sitter-cpp>=0.21.0
+tree-sitter-rust>=0.21.0
+

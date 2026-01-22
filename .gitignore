@@ -18,6 +18,17 @@ frontend/build/
 .vscode/
 .idea/
 
+# Logs
+*.log
+backend/*.log
+frontend/*.log
+
 # Project specific
 backend/processed_repos/
 backend/uploads/
+
+# OS files
+.DS_Store
+*.swp
+*.swo
+*~
